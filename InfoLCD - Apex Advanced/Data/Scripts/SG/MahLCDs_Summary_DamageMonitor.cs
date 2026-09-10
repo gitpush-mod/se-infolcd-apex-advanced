@@ -372,7 +372,7 @@ namespace MahrianeIndustries.LCDInfo
 
                 structuralScanTick++;
                 // Recompute based on SubgridUpdateFrequency config; compute immediately on first activation
-                if (structuralScanTick % (surfaceData.subgridUpdateFrequency / 10) != 0 && structuralBlockCount > 0)
+                if (structuralScanTick % Math.Max(1, surfaceData.subgridUpdateFrequency / 10) != 0 && structuralBlockCount > 0)
                     return;
 
                 double cur = 0d;
