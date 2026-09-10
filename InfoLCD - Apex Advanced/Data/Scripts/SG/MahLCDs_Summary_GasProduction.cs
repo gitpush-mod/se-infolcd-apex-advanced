@@ -724,7 +724,7 @@ namespace MahrianeIndustries.LCDInfo
                 }
 
                 // Draw generators with scrolling/wrapping
-                CargoItemDefinition iceDefinition = MahDefinitions.GetDefinition(\"Ore\", \"Ice\");
+                CargoItemDefinition iceDefinition = MahDefinitions.GetDefinition("Ore", "Ice");
                 List<VRage.Game.ModAPI.Ingame.MyInventoryItem> inventoryItems = new List<VRage.Game.ModAPI.Ingame.MyInventoryItem>();
                 
                 int linesDrawn = 0;
@@ -750,7 +750,7 @@ namespace MahrianeIndustries.LCDInfo
                         {
                             if (item == null) continue;
                             var subtypeId = item.Type.SubtypeId;
-                            if (subtypeId.Contains(\"Ice\"))
+                            if (subtypeId.Contains("Ice"))
                             {
                                 iceCount += item.Amount.ToIntSafe();
                             }
@@ -761,12 +761,12 @@ namespace MahrianeIndustries.LCDInfo
                         currentVolume = (float)inventory.CurrentVolume;
 
                     float maximumVolume = (float)inventory.MaxVolume * 1000f;
-                    var state = $\"{(!generator.IsWorking ? \"    Off\" : currentVolume <= 0 ? \"   Halt\" : \"  Work\")}\";
-                    var stateColor = !surfaceData.useColors ? surfaceData.surface.ScriptForegroundColor : state.Contains(\"Off\") ? Color.Orange : state.Contains(\"Halt\") ? Color.Yellow : Color.GreenYellow;
+                    var state = $"{(!generator.IsWorking ? "    Off" : currentVolume <= 0 ? "   Halt" : "  Work")}";
+                    var stateColor = !surfaceData.useColors ? surfaceData.surface.ScriptForegroundColor : state.Contains("Off") ? Color.Orange : state.Contains("Halt") ? Color.Yellow : Color.GreenYellow;
 
                     // Left: state badge + name
-                    SurfaceDrawer.WriteTextSprite(ref frame, position, surfaceData, $\"{state}\", TextAlignment.LEFT, stateColor);
-                    SurfaceDrawer.WriteTextSprite(ref frame, position, surfaceData, $\"[          ] {name}\", TextAlignment.LEFT, surfaceData.surface.ScriptForegroundColor);
+                    SurfaceDrawer.WriteTextSprite(ref frame, position, surfaceData, $"{state}", TextAlignment.LEFT, stateColor);
+                    SurfaceDrawer.WriteTextSprite(ref frame, position, surfaceData, $"[          ] {name}", TextAlignment.LEFT, surfaceData.surface.ScriptForegroundColor);
                     
                     // Right: ice inventory bar
                     SurfaceDrawer.DrawHalfBar(ref frame, position, surfaceData, TextAlignment.RIGHT, currentVolume, maximumVolume, Unit.Percent, Color.Aquamarine);
@@ -777,7 +777,7 @@ namespace MahrianeIndustries.LCDInfo
             }
             catch (Exception e)
             {
-                MyLog.Default.WriteLine($\"MahrianeIndustries.LCDInfo.LCDInfoScreenGasGenerationSummary: Caught Exception while DrawGeneratorsListSprite: {e.ToString()}\");
+                MyLog.Default.WriteLine($"MahrianeIndustries.LCDInfo.LCDInfoScreenGasGenerationSummary: Caught Exception while DrawGeneratorsListSprite: {e.ToString()}");
             }
         }
 
@@ -826,16 +826,16 @@ namespace MahrianeIndustries.LCDInfo
                     string name = oxygenFarm.CustomName;
                     if (name.Length > maxNameLength) name = name.Substring(0, maxNameLength);
 
-                    var currentOutput = oxygenFarm.DetailedInfo.Split('\\n')[2].Replace(\"Oxygen Output:\", \"\").Trim();
-                    var state = $\"{(!oxygenFarm.IsWorking ? \"    Off\" : !oxygenFarm.CanProduce ? \"  Idle\" : \"    On\")}\";
-                    var stateColor = !surfaceData.useColors ? surfaceData.surface.ScriptForegroundColor : state.Contains(\"Off\") ? Color.Orange : state.Contains(\"Idle\") ? Color.Yellow : Color.GreenYellow;
+                    var currentOutput = oxygenFarm.DetailedInfo.Split('\n')[2].Replace("Oxygen Output:", "").Trim();
+                    var state = $"{(!oxygenFarm.IsWorking ? "    Off" : !oxygenFarm.CanProduce ? "  Idle" : "    On")}";
+                    var stateColor = !surfaceData.useColors ? surfaceData.surface.ScriptForegroundColor : state.Contains("Off") ? Color.Orange : state.Contains("Idle") ? Color.Yellow : Color.GreenYellow;
 
                     // Left: state badge + name
-                    SurfaceDrawer.WriteTextSprite(ref frame, position, surfaceData, $\"{state}\", TextAlignment.LEFT, stateColor);
-                    SurfaceDrawer.WriteTextSprite(ref frame, position, surfaceData, $\"[          ] {name}\", TextAlignment.LEFT, surfaceData.surface.ScriptForegroundColor);
+                    SurfaceDrawer.WriteTextSprite(ref frame, position, surfaceData, $"{state}", TextAlignment.LEFT, stateColor);
+                    SurfaceDrawer.WriteTextSprite(ref frame, position, surfaceData, $"[          ] {name}", TextAlignment.LEFT, surfaceData.surface.ScriptForegroundColor);
                     
                     // Right: oxygen output
-                    SurfaceDrawer.WriteTextSprite(ref frame, position, surfaceData, $\"{currentOutput}    \", TextAlignment.RIGHT, surfaceData.surface.ScriptForegroundColor);
+                    SurfaceDrawer.WriteTextSprite(ref frame, position, surfaceData, $"{currentOutput}    ", TextAlignment.RIGHT, surfaceData.surface.ScriptForegroundColor);
                     
                     position += surfaceData.newLine;
                     linesDrawn++;
@@ -843,7 +843,7 @@ namespace MahrianeIndustries.LCDInfo
             }
             catch (Exception e)
             {
-                MyLog.Default.WriteLine($\"MahrianeIndustries.LCDInfo.LCDInfoScreenGasGenerationSummary: Caught Exception while DrawOxygenFarmsListSprite: {e.ToString()}\");
+                MyLog.Default.WriteLine($"MahrianeIndustries.LCDInfo.LCDInfoScreenGasGenerationSummary: Caught Exception while DrawOxygenFarmsListSprite: {e.ToString()}");
             }
         }
 

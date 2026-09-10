@@ -361,6 +361,7 @@ namespace MahrianeIndustries.LCDInfo
         List<CargoItemDefinition> itemDefinitions = new List<CargoItemDefinition>();
         List<CargoItemDefinition> unknownItemDefinitions = new List<CargoItemDefinition>();
         List<IMyInventory> inventories = new List<IMyInventory>();
+        List<IMyInventory> subgridInventories = new List<IMyInventory>();  // Cached subgrid inventories
 
     // Dynamic category item storage keyed by sortId
     Dictionary<string, Dictionary<string, CargoItemType>> categoryItems = new Dictionary<string, Dictionary<string, CargoItemType>>(StringComparer.OrdinalIgnoreCase);
