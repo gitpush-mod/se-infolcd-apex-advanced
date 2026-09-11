@@ -60,6 +60,14 @@ namespace MahrianeIndustries.LCDInfo
                 showAmmo = true,
                 showHandAmmo = true
             };
+
+            // Scrolling state
+            toggleScroll = false;
+            reverseDirection = false;
+            scrollSpeed = 60;
+            scrollLines = 1;
+            scrollOffset = 0;
+            ticksSinceLastScroll = 0;
         }
 
         void CreateConfig()
@@ -99,14 +107,8 @@ namespace MahrianeIndustries.LCDInfo
                             addedOtherContent = true;
                         }
                     }
-                    else if (!inOurSection && addedOtherContent)
-                    {
-                        // Add any line that's not in our section
-                        sb.AppendLine(line);
-                    }
                     else if (!inOurSection && !string.IsNullOrWhiteSpace(trimmed))
                     {
-                        // First non-empty line before any section
                         sb.AppendLine(line);
                         addedOtherContent = true;
                     }
@@ -121,19 +123,26 @@ namespace MahrianeIndustries.LCDInfo
             sb.AppendLine();
             sb.AppendLine("; [ AMMO - GENERAL OPTIONS ]");
             sb.AppendLine($"SearchId={(!string.IsNullOrEmpty(searchId) ? searchId : "*")}");
+            sb.AppendLine("; Block name filter: Use '*' for all, or text to match block names (case-insensitive substring match)");
+            sb.AppendLine("; Examples: 'Cargo' matches 'Main Cargo', 'Engineering,Medical' matches blocks containing either word");
+            ConfigHelpers.AppendItemFilterConfig(sb, itemFilter);
             sb.AppendLine($"ExcludeIds={string.Join(",", excludeIds)}");
-            sb.AppendLine($"ShowHeader={surfaceData.showHeader}");
-            sb.AppendLine($"ShowSummary={surfaceData.showSummary}");
-            sb.AppendLine($"ShowMissing={surfaceData.showMissing}");
-            sb.AppendLine($"ShowRatio={surfaceData.showRatio}");
-            sb.AppendLine($"ShowBars={surfaceData.showBars}");
-            sb.AppendLine($"ShowSubgrids={surfaceData.showSubgrids}");
-            sb.AppendLine($"SubgridUpdateFrequency={surfaceData.subgridUpdateFrequency}");
-            sb.AppendLine("; Subgrid scan frequency: 1=fastest (60/sec), 10=normal (6/sec), 100=slowest (0.6/sec)");
-            sb.AppendLine($"ShowDocked={surfaceData.showDocked}");
-            sb.AppendLine($"UseColors={surfaceData.useColors}");
+            sb.AppendLine("; Exclude blocks containing these words (comma-separated, case-insensitive)");
+            sb.AppendLine("; Example: 'Airlock,Backup' excludes blocks with 'Airlock' or 'Backup' in their names");
+            ConfigHelpers.AppendShowHeaderConfig(sb, surfaceData.showHeader);
+            ConfigHelpers.AppendShowSummaryConfig(sb, surfaceData.showSummary);
+            ConfigHelpers.AppendShowMissingConfig(sb, surfaceData.showMissing);
+            ConfigHelpers.AppendShowRatioConfig(sb, surfaceData.showRatio);
+            ConfigHelpers.AppendShowBarsConfig(sb, surfaceData.showBars);
+            ConfigHelpers.AppendShowSubgridsConfig(sb, surfaceData.showSubgrids);
+            ConfigHelpers.AppendSubgridUpdateFrequencyConfig(sb, surfaceData.subgridUpdateFrequency);
+            ConfigHelpers.AppendShowDockedConfig(sb, surfaceData.showDocked);
+            ConfigHelpers.AppendUseColorsConfig(sb, surfaceData.useColors);
+            ConfigHelpers.AppendInvertBarColorsConfig(sb, invertBarColors);
 
             sb.AppendLine();
+            ConfigHelpers.AppendScrollingConfig(sb, "AMMO");
+
             sb.AppendLine("; [ AMMO - LAYOUT OPTIONS ]");
             sb.AppendLine($"TextSize={surfaceData.textSize}");
             sb.AppendLine($"ViewPortOffsetX={surfaceData.viewPortOffsetX}");
@@ -153,11 +162,6 @@ namespace MahrianeIndustries.LCDInfo
             CreateCargoItemDefinitionList();
 
             foreach (CargoItemDefinition itemDefinition in itemDefinitions)
-            {
-                sb.AppendLine($"{itemDefinition.subtypeId}={itemDefinition.minAmount}");
-            }
-
-            foreach (CargoItemDefinition itemDefinition in unknownItemDefinitions)
             {
                 sb.AppendLine($"{itemDefinition.subtypeId}={itemDefinition.minAmount}");
             }
@@ -198,7 +202,10 @@ namespace MahrianeIndustries.LCDInfo
                     MahUtillities.TryGetConfigFloat(config, CONFIG_SECTION_ID, "ViewPortOffsetY", ref surfaceData.viewPortOffsetY, ref configError);
 
                     MahUtillities.TryGetConfigBool(config, CONFIG_SECTION_ID, "UseColors", ref surfaceData.useColors, ref configError);
-                    
+                    // Optional, defaults to false. Backward-compat with pre-update configs (no error if missing).
+                    if (config.ContainsKey(CONFIG_SECTION_ID, "InvertBarColors"))
+                        invertBarColors = config.Get(CONFIG_SECTION_ID, "InvertBarColors").ToBoolean();
+
                     // UseSubtypeId is optional for backward compatibility
                     if (config.ContainsKey(CONFIG_SECTION_ID, "UseSubtypeId"))
                         surfaceData.useSubtypeId = config.Get(CONFIG_SECTION_ID, "UseSubtypeId").ToBoolean();
@@ -208,6 +215,16 @@ namespace MahrianeIndustries.LCDInfo
                         surfaceData.showAmmo = config.Get(CONFIG_SECTION_ID, "showAmmo").ToBoolean();
                     if (config.ContainsKey(CONFIG_SECTION_ID, "showHandAmmo"))
                         surfaceData.showHandAmmo = config.Get(CONFIG_SECTION_ID, "showHandAmmo").ToBoolean();
+
+                    // Scrolling options (optional; default false/5/1)
+                    if (config.ContainsKey(CONFIG_SECTION_ID, "ToggleScroll"))
+                        toggleScroll = config.Get(CONFIG_SECTION_ID, "ToggleScroll").ToBoolean(false);
+                    if (config.ContainsKey(CONFIG_SECTION_ID, "ReverseDirection"))
+                        reverseDirection = config.Get(CONFIG_SECTION_ID, "ReverseDirection").ToBoolean(false);
+                    if (config.ContainsKey(CONFIG_SECTION_ID, "ScrollSpeed"))
+                        scrollSpeed = Math.Max(1, config.Get(CONFIG_SECTION_ID, "ScrollSpeed").ToInt32(60));
+                    if (config.ContainsKey(CONFIG_SECTION_ID, "ScrollLines"))
+                        scrollLines = Math.Max(1, config.Get(CONFIG_SECTION_ID, "ScrollLines").ToInt32(1));
 
                     surfaceData.newLine = new Vector2(0, 30 * surfaceData.textSize);
 
@@ -220,6 +237,7 @@ namespace MahrianeIndustries.LCDInfo
                         configError = true;
 
                     CreateExcludeIdsList();
+                    ConfigHelpers.ParseItemFilter(config, CONFIG_SECTION_ID, itemFilter);
 
                     // Is Corner LCD?
                     if (compactMode)
@@ -236,6 +254,7 @@ namespace MahrianeIndustries.LCDInfo
                 else
                 {
                     MyLog.Default.WriteLine($"MahrianeIndustries.LCDInfo.LCDAmmoSummaryInfo: Config Syntax error at Line {result}");
+                    configError = true;
                 }
 
                 CreateCargoItemDefinitionList();
@@ -298,27 +317,19 @@ namespace MahrianeIndustries.LCDInfo
                 }
             }
 
-            foreach (CargoItemDefinition definition in unknownItemDefinitions)
-            {
-                if (item_types.Contains(definition.typeId))
-                {
-                    int minAmount = config.ContainsKey(CONFIG_SECTION_ID, definition.subtypeId) ? (int)config.Get(CONFIG_SECTION_ID, definition.subtypeId).ToInt64() : definition.minAmount;
-                    itemDefinitions.Add(new CargoItemDefinition { typeId = definition.typeId, subtypeId = definition.subtypeId, displayName = definition.displayName, volume = definition.volume, minAmount = minAmount, sortId = definition.sortId });
-                }
-            }
         }
 
         IMyTextSurface mySurface;
         IMyTerminalBlock myTerminalBlock;
 
         List<string> excludeIds = new List<string>();
+        List<string> itemFilter = new List<string>();
+        bool invertBarColors = false;
         List<CargoItemDefinition> itemDefinitions = new List<CargoItemDefinition>();
         List<CargoItemDefinition> unknownItemDefinitions = new List<CargoItemDefinition>();
         List<IMyInventory> inventories = new List<IMyInventory>();
+        List<IMyInventory> subgridInventories = new List<IMyInventory>();  // Cached subgrid inventories
         List<VRage.Game.ModAPI.Ingame.MyInventoryItem> inventoryItems = new List<VRage.Game.ModAPI.Ingame.MyInventoryItem>();
-        
-        // Cached subgrid inventories (persisted between main grid scans)
-        List<IMyInventory> subgridInventories = new List<IMyInventory>();
 
         Dictionary<string, CargoItemType> cargo = new Dictionary<string, CargoItemType>();
 
@@ -330,9 +341,18 @@ namespace MahrianeIndustries.LCDInfo
         int minVisibleAmount = 0;
         int subgridScanTick = 0;
         bool configError = false;
+        bool needsCleanup = true;
         bool compactMode = false;
         bool isStation = false;
         Sandbox.ModAPI.Ingame.MyShipMass gridMass;
+
+        // Scrolling state
+        bool toggleScroll = false;
+        bool reverseDirection = false;
+        int scrollSpeed = 60;
+        int scrollLines = 1;
+        int scrollOffset = 0;
+        int ticksSinceLastScroll = 0;
 
         public LCDAmmoSummaryInfo(IMyTextSurface surface, IMyCubeBlock block, Vector2 size) : base(surface, block, size)
         {
@@ -353,18 +373,54 @@ namespace MahrianeIndustries.LCDInfo
             if (Sandbox.ModAPI.MyAPIGateway.Utilities?.IsDedicated ?? false)
                 return;
 
-            // Fix for issue #11 + multi-surface regression fix (mirrors Apex Update).
-            // Cheap no-op unless a foreign [Settings*] section is present on this block.
+            // Fix for issue #11 (leftover legacy sibling app sections can trigger
+            // a hang tied to grid-state changes like merge blocks). Cheap no-op
+            // unless a foreign [Settings*] section is actually present.
             ConfigHelpers.PurgeLegacyAppSections(myTerminalBlock, CONFIG_SECTION_ID);
 
             MahDefinitions.LoadExternalItems();
             if (myTerminalBlock.CustomData.Length <= 0 || !myTerminalBlock.CustomData.Contains(CONFIG_SECTION_ID))
                 CreateConfig();
+            else if (needsCleanup) { needsCleanup = false; ConfigHelpers.StripExcessBlankLines(myTerminalBlock); }
 
             LoadConfig();
 
             UpdateInventories();
             UpdateContents();
+
+            // Auto-add newly discovered modded items to config
+            foreach (CargoItemDefinition def in unknownItemDefinitions)
+            {
+                if (!config.ContainsKey(CONFIG_SECTION_ID, def.subtypeId))
+                {
+                    CreateConfig();
+                    MyIniParseResult r;
+                    config.TryParse(myTerminalBlock.CustomData, CONFIG_SECTION_ID, out r);
+                    break;
+                }
+            }
+
+            // Update scroll offset if scrolling is enabled
+            if (toggleScroll)
+            {
+                ticksSinceLastScroll += 10;  // Update10 fires every 10 ticks — must increment by 10
+                if (ticksSinceLastScroll >= scrollSpeed)
+                {
+                    ticksSinceLastScroll = 0;
+                    if (reverseDirection)
+                        scrollOffset -= scrollLines;
+                    else
+                        scrollOffset += scrollLines;
+                    
+                    // Scroll offset will wrap around in the draw methods based on actual item count
+                }
+            }
+            else
+            {
+                // Reset scroll when disabled
+                scrollOffset = 0;
+                ticksSinceLastScroll = 0;
+            }
 
             var myFrame = mySurface.DrawFrame();
             var myViewport = new RectangleF((mySurface.TextureSize - mySurface.SurfaceSize) / 2f, mySurface.SurfaceSize);
@@ -383,45 +439,43 @@ namespace MahrianeIndustries.LCDInfo
         {
             try
             {
-                // Determine if we should scan subgrids this cycle
-                bool scanSubgrids = false;
-                if (surfaceData.showSubgrids)
-                {
-                    subgridScanTick++;
-                    if (subgridScanTick >= surfaceData.subgridUpdateFrequency / 10)
-                    {
-                        subgridScanTick = 0;
-                        scanSubgrids = true;
-                    }
-                }
-
-                inventories.Clear();
-
                 var myCubeGrid = myTerminalBlock.CubeGrid as MyCubeGrid;
-
                 if (myCubeGrid == null) return;
 
                 IMyCubeGrid cubeGrid = myCubeGrid as IMyCubeGrid;
                 isStation = cubeGrid.IsStatic;
                 gridId = cubeGrid.CustomName;
 
-                // Always get main grid inventories
-                var mainInventories = MahUtillities.GetInventories(myCubeGrid, searchId, excludeIds, ref gridMass, false, surfaceData.showDocked);
-                inventories.AddRange(mainInventories);
-                
-                // Periodically update subgrid cache
+                // Determine if we should scan subgrids/docked on this tick
+                bool scanSubgrids = false;
+                if (surfaceData.showSubgrids || surfaceData.showDocked)
+                {
+                    subgridScanTick++;
+                    if (subgridScanTick >= surfaceData.subgridUpdateFrequency / 10)  // Divide by 10 for Update10 timing
+                    {
+                        subgridScanTick = 0;
+                        scanSubgrids = true;
+                    }
+                }
+
+                // Always scan main grid inventories (instant updates)
+                var mainInventories = MahUtillities.GetInventories(myCubeGrid, searchId, excludeIds, ref gridMass, false, false);
+
+                // Periodically update subgrid/docked inventory cache
                 if (scanSubgrids)
                 {
-                    var allInventories = MahUtillities.GetInventories(myCubeGrid, searchId, excludeIds, ref gridMass, true, surfaceData.showDocked);
+                    var allInventories = MahUtillities.GetInventories(myCubeGrid, searchId, excludeIds, ref gridMass, surfaceData.showSubgrids, surfaceData.showDocked);
                     subgridInventories.Clear();
-                    
-                    // Extract subgrid-only inventories
-                    foreach (var inv in allInventories)
-                        if (!mainInventories.Contains(inv))
-                            subgridInventories.Add(inv);
+                    foreach (var inventory in allInventories)
+                    {
+                        if (!mainInventories.Contains(inventory))
+                            subgridInventories.Add(inventory);
+                    }
                 }
-                
-                // Merge cached subgrid inventories
+
+                // Merge main (fresh) and subgrid (cached) inventories
+                inventories.Clear();
+                inventories.AddRange(mainInventories);
                 inventories.AddRange(subgridInventories);
             }
             catch (Exception e)
@@ -434,8 +488,8 @@ namespace MahrianeIndustries.LCDInfo
         {
             try
             {
-                cargo.Clear();
                 unknownItemDefinitions.Clear();
+                cargo.Clear();
 
                 foreach (var inventory in inventories)
                 {
@@ -457,6 +511,11 @@ namespace MahrianeIndustries.LCDInfo
 
                         if (item_types.Contains(typeId))
                         {
+                            // Item-level filter (separate from SearchId, which filters BLOCKS).
+                            // Skip items whose subtype doesn't match the ItemFilter list.
+                            if (!ConfigHelpers.ItemPassesFilter(itemFilter, subtypeId))
+                                continue;
+
                             if (!cargo.ContainsKey(subtypeId))
                             {
                                 cargo.Add(subtypeId, new CargoItemType { item = item, amount = currentAmount });
@@ -469,7 +528,7 @@ namespace MahrianeIndustries.LCDInfo
                                     itemDefinition.subtypeId = subtypeId;
                                     itemDefinition.displayName = subtypeId.Length >= 15 ? subtypeId.Substring(0, 15) : subtypeId;
                                     itemDefinition.volume = .1f;
-                                    itemDefinition.minAmount = 1000;
+                                    itemDefinition.minAmount = config.ContainsKey(CONFIG_SECTION_ID, subtypeId) ? config.Get(CONFIG_SECTION_ID, subtypeId).ToInt32() : 1000;
                                     itemDefinition.sortId = "misc"; // default category
 
                                     itemDefinitions.Add(itemDefinition);
@@ -580,43 +639,77 @@ namespace MahrianeIndustries.LCDInfo
         {
             try
             {
+                // Calculate header position and data start position
+                Vector2 headerPosition = position;
+                
                 // Indicate active filters in header (A=ammo, H=hand, * means hidden)
                 string filterTag = $"[{(surfaceData.showAmmo ? "A" : "*")}/{(surfaceData.showHandAmmo ? "H" : "*")}]";
-                SurfaceDrawer.WriteTextSprite(ref frame, position, surfaceData, $"Id [Ammo]{filterTag}", TextAlignment.LEFT, surfaceData.surface.ScriptForegroundColor);
-                SurfaceDrawer.WriteTextSprite(ref frame, position, surfaceData, "Available", TextAlignment.RIGHT, surfaceData.surface.ScriptForegroundColor);
+                SurfaceDrawer.WriteTextSprite(ref frame, headerPosition, surfaceData, $"Id [Ammo]{filterTag}", TextAlignment.LEFT, surfaceData.surface.ScriptForegroundColor);
+                SurfaceDrawer.WriteTextSprite(ref frame, headerPosition, surfaceData, "Available", TextAlignment.RIGHT, surfaceData.surface.ScriptForegroundColor);
 
-                position += surfaceData.newLine;
+                headerPosition += surfaceData.newLine; // Blank line after header
+                Vector2 dataStartPosition = headerPosition;
 
-                var sortedItemDefinitions = surfaceData.useSubtypeId
-                    ? itemDefinitions.OrderBy(d => d.subtypeId)
-                    : itemDefinitions.OrderBy(d => d.displayName);
+                // Collect all items into a single list for scrolling
+                List<CargoItemDefinition> allItems = new List<CargoItemDefinition>();
+
+                // Sort alphabetically by display name (ignore sortId grouping for Ammo screen)
+                var sortedItemDefinitions = itemDefinitions
+                    .Where(d => d != null)
+                    .OrderBy(d => surfaceData.useSubtypeId ? d.subtypeId : d.displayName);
 
                 foreach (var itemDefinition in sortedItemDefinitions)
                 {
                     if (itemDefinition == null) continue;
                     if (IgnoreDefinition(itemDefinition)) continue;
+                    if (!ConfigHelpers.ItemPassesFilter(itemFilter, itemDefinition.subtypeId, itemDefinition.displayName)) continue;
                     if (!IncludeBySortId(itemDefinition.sortId)) continue;
 
-                    string displayText = surfaceData.useSubtypeId ? itemDefinition.subtypeId : itemDefinition.displayName;
-
-                    SurfaceDrawer.DrawItemSprite(ref frame, ref position, surfaceData,
-                        itemDefinition.subtypeId,
-                        displayText,
-                        cargo.ContainsKey(itemDefinition.subtypeId) ? cargo[itemDefinition.subtypeId].amount : 0,
-                        itemDefinition.minAmount,
-                        true);
+                    allItems.Add(itemDefinition);
                 }
 
-                var sortedUnknownItemDefinitions = surfaceData.useSubtypeId
-                    ? unknownItemDefinitions.OrderBy(d => d.subtypeId)
-                    : unknownItemDefinitions.OrderBy(d => d.displayName);
+                var sortedUnknownItemDefinitions = unknownItemDefinitions
+                    .Where(d => d != null)
+                    .OrderBy(d => surfaceData.useSubtypeId ? d.subtypeId : d.displayName);
 
                 foreach (var itemDefinition in sortedUnknownItemDefinitions)
                 {
                     if (itemDefinition == null) continue;
                     if (IgnoreDefinition(itemDefinition)) continue;
+                    if (!ConfigHelpers.ItemPassesFilter(itemFilter, itemDefinition.subtypeId, itemDefinition.displayName)) continue;
                     if (!IncludeBySortId(itemDefinition.sortId)) continue;
 
+                    allItems.Add(itemDefinition);
+                }
+
+                // Calculate lines available for data
+                // We need to be conservative - only count lines that will FULLY fit on screen
+                float screenHeight = mySurface.SurfaceSize.Y;
+                float lineHeight = 30f * surfaceData.textSize;  // Each line takes 30 pixels * textSize
+                float remainingHeight = screenHeight - dataStartPosition.Y;  // Space left for data
+                // Subtract half a line height to ensure we only count fully visible lines
+                int availableDataLines = Math.Max(1, (int)((remainingHeight - (lineHeight * 0.5f)) / lineHeight));
+
+                // Apply scrolling if enabled and needed
+                int totalDataLines = allItems.Count;
+                int startIndex = 0;
+                
+                if (toggleScroll && totalDataLines > availableDataLines)
+                {
+                    // Normalize scroll offset to stay within bounds (use local variable)
+                    int normalizedOffset = ((scrollOffset % totalDataLines) + totalDataLines) % totalDataLines;
+                    startIndex = normalizedOffset;
+                }
+
+                // Draw items with scrolling/wrapping
+                position = dataStartPosition;
+                int linesDrawn = 0;
+                
+                for (int i = 0; i < totalDataLines && linesDrawn < availableDataLines; i++)
+                {
+                    int itemIndex = (startIndex + i) % totalDataLines;
+                    var itemDefinition = allItems[itemIndex];
+                    
                     string displayText = surfaceData.useSubtypeId ? itemDefinition.subtypeId : itemDefinition.displayName;
 
                     SurfaceDrawer.DrawItemSprite(ref frame, ref position, surfaceData,
@@ -624,7 +717,9 @@ namespace MahrianeIndustries.LCDInfo
                         displayText,
                         cargo.ContainsKey(itemDefinition.subtypeId) ? cargo[itemDefinition.subtypeId].amount : 0,
                         itemDefinition.minAmount,
-                        true);
+                        !invertBarColors);
+
+                    linesDrawn++;
                 }
             }
             catch (Exception e)
@@ -644,10 +739,18 @@ namespace MahrianeIndustries.LCDInfo
                     return;
                 }
 
+                // Calculate header position and data start position
+                Vector2 headerPosition = position;
+                
                 string filterTag = $"[{(surfaceData.showAmmo ? "A" : "*")}/{(surfaceData.showHandAmmo ? "H" : "*")}]";
-                SurfaceDrawer.WriteTextSprite(ref frame, position, surfaceData, $"Id [Ammo]{filterTag}", TextAlignment.LEFT, surfaceData.surface.ScriptForegroundColor);
-                SurfaceDrawer.WriteTextSprite(ref frame, position, surfaceData, "Available", TextAlignment.RIGHT, surfaceData.surface.ScriptForegroundColor);
-                position += surfaceData.newLine;
+                SurfaceDrawer.WriteTextSprite(ref frame, headerPosition, surfaceData, $"Id [Ammo]{filterTag}", TextAlignment.LEFT, surfaceData.surface.ScriptForegroundColor);
+                SurfaceDrawer.WriteTextSprite(ref frame, headerPosition, surfaceData, "Available", TextAlignment.RIGHT, surfaceData.surface.ScriptForegroundColor);
+
+                headerPosition += surfaceData.newLine; // Blank line after header
+                Vector2 dataStartPosition = headerPosition;
+
+                // Collect available items that pass filters into list for scrolling
+                List<KeyValuePair<string, CargoItemType>> filteredItems = new List<KeyValuePair<string, CargoItemType>>();
 
                 foreach (var item in MahSorting.SortCargoItems(cargo, MahSorting.ItemSortMode.SubtypeId))
                 {
@@ -663,6 +766,41 @@ namespace MahrianeIndustries.LCDInfo
                     if (!IncludeBySortId(itemDefinition.sortId)) continue;
                     if (cargo[itemDefinition.subtypeId].amount < minVisibleAmount) continue;
 
+                    filteredItems.Add(item);
+                }
+
+                // Calculate lines available for data
+                // We need to be conservative - only count lines that will FULLY fit on screen
+                float screenHeight = mySurface.SurfaceSize.Y;
+                float lineHeight = 30f * surfaceData.textSize;  // Each line takes 30 pixels * textSize
+                float remainingHeight = screenHeight - dataStartPosition.Y;  // Space left for data
+                // Subtract half a line height to ensure we only count fully visible lines
+                int availableDataLines = Math.Max(1, (int)((remainingHeight - (lineHeight * 0.5f)) / lineHeight));
+
+                // Apply scrolling if enabled and needed
+                int totalDataLines = filteredItems.Count;
+                int startIndex = 0;
+                
+                if (toggleScroll && totalDataLines > availableDataLines)
+                {
+                    // Normalize scroll offset to stay within bounds (use local variable)
+                    int normalizedOffset = ((scrollOffset % totalDataLines) + totalDataLines) % totalDataLines;
+                    startIndex = normalizedOffset;
+                }
+
+                // Draw items with scrolling/wrapping
+                position = dataStartPosition;
+                int linesDrawn = 0;
+                
+                for (int i = 0; i < totalDataLines && linesDrawn < availableDataLines; i++)
+                {
+                    int itemIndex = (startIndex + i) % totalDataLines;
+                    var item = filteredItems[itemIndex];
+                    
+                    var typeId = item.Value.item.Type.TypeId.Split('_')[1];
+                    var subtypeId = item.Value.item.Type.SubtypeId;
+                    CargoItemDefinition itemDefinition = FindCargoItemDefinition(typeId, subtypeId);
+
                     string displayText = surfaceData.useSubtypeId ? itemDefinition.subtypeId : itemDefinition.displayName;
 
                     SurfaceDrawer.DrawItemSprite(ref frame, ref position, surfaceData,
@@ -670,7 +808,9 @@ namespace MahrianeIndustries.LCDInfo
                         displayText,
                         cargo.ContainsKey(itemDefinition.subtypeId) ? cargo[itemDefinition.subtypeId].amount : 0,
                         itemDefinition.minAmount,
-                        true);
+                        !invertBarColors);
+
+                    linesDrawn++;
                 }
             }
             catch (Exception e)

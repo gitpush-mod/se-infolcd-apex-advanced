@@ -86,19 +86,20 @@ namespace MahrianeIndustries.LCDInfo
             sb.AppendLine($"[{CONFIG_SECTION_ID}]");
             sb.AppendLine();
             sb.AppendLine("; [ POWER - GENERAL OPTIONS ]");
-            sb.AppendLine($"SearchId={searchId}");
-            sb.AppendLine($"ExcludeIds={(excludeIds != null && excludeIds.Count > 0 ? String.Join(", ", excludeIds.ToArray()) : "")}");
-            sb.AppendLine($"ShowHeader={surfaceData.showHeader}");
-            sb.AppendLine($"ShowSummary={surfaceData.showSummary}");
-            sb.AppendLine($"ShowRatio={surfaceData.showRatio}");
-            sb.AppendLine($"ShowBars={surfaceData.showBars}");
-            sb.AppendLine($"ShowSubgrids={surfaceData.showSubgrids}");
-            sb.AppendLine($"SubgridUpdateFrequency={surfaceData.subgridUpdateFrequency}");
-            sb.AppendLine("; Subgrid scan frequency: 1=fastest (60/sec), 10=normal (6/sec), 100=slowest (0.6/sec)");
-            sb.AppendLine($"ShowDocked={surfaceData.showDocked}");
-            sb.AppendLine($"UseColors={surfaceData.useColors}");
+            ConfigHelpers.AppendSearchIdConfig(sb, searchId);
+            ConfigHelpers.AppendExcludeIdsConfig(sb, excludeIds);
+            ConfigHelpers.AppendShowHeaderConfig(sb, surfaceData.showHeader);
+            ConfigHelpers.AppendShowSummaryConfig(sb, surfaceData.showSummary);
+            ConfigHelpers.AppendShowRatioConfig(sb, surfaceData.showRatio);
+            ConfigHelpers.AppendShowBarsConfig(sb, surfaceData.showBars);
+            ConfigHelpers.AppendShowSubgridsConfig(sb, surfaceData.showSubgrids);
+            ConfigHelpers.AppendSubgridUpdateFrequencyConfig(sb, surfaceData.subgridUpdateFrequency);
+            ConfigHelpers.AppendShowDockedConfig(sb, surfaceData.showDocked);
+            ConfigHelpers.AppendUseColorsConfig(sb, surfaceData.useColors);
 
             sb.AppendLine();
+            ConfigHelpers.AppendScrollingConfig(sb, "POWER");
+
             sb.AppendLine("; [ POWER - LAYOUT OPTIONS ]");
             sb.AppendLine($"TextSize={surfaceData.textSize}");
             sb.AppendLine($"ViewPortOffsetX={surfaceData.viewPortOffsetX}");
@@ -174,6 +175,18 @@ namespace MahrianeIndustries.LCDInfo
                     else
                         uraniumMinAmount = 500;
 
+                    // Scrolling options (optional; default false/60/1)
+                    if (config.ContainsKey(CONFIG_SECTION_ID, "ToggleScroll"))
+                        toggleScroll = config.Get(CONFIG_SECTION_ID, "ToggleScroll").ToBoolean(false);
+                    if (config.ContainsKey(CONFIG_SECTION_ID, "ReverseDirection"))
+                        reverseDirection = config.Get(CONFIG_SECTION_ID, "ReverseDirection").ToBoolean(false);
+                    if (config.ContainsKey(CONFIG_SECTION_ID, "ScrollSpeed"))
+                        scrollSpeed = Math.Max(1, config.Get(CONFIG_SECTION_ID, "ScrollSpeed").ToInt32(60));
+                    if (config.ContainsKey(CONFIG_SECTION_ID, "ScrollLines"))
+                        scrollLines = Math.Max(1, config.Get(CONFIG_SECTION_ID, "ScrollLines").ToInt32(1));
+                    if (config.ContainsKey(CONFIG_SECTION_ID, "MaxListLines"))
+                        maxListLines = Math.Max(0, config.Get(CONFIG_SECTION_ID, "MaxListLines").ToInt32(5));
+
                     if (config.ContainsKey(CONFIG_SECTION_ID, "SearchId"))
                     {
                         searchId = config.Get(CONFIG_SECTION_ID, "SearchId").ToString();
@@ -200,6 +213,7 @@ namespace MahrianeIndustries.LCDInfo
                 else
                 {
                     MyLog.Default.WriteLine($"MahrianeIndustries.LCDInfo.LCDInfoScreenPowerSummary: Config Syntax error at Line {result}");
+                    configError = true;
                 }
             }
             catch (Exception e)
@@ -277,6 +291,15 @@ namespace MahrianeIndustries.LCDInfo
         bool compactMode = false;
         bool isStation = false;
         Sandbox.ModAPI.Ingame.MyShipMass gridMass;
+        
+        // Scrolling state
+        bool toggleScroll = false;
+        bool reverseDirection = false;
+        int scrollSpeed = 60;
+        int scrollLines = 1;
+        int maxListLines = 5;
+        int scrollOffset = 0;
+        int ticksSinceLastScroll = 0;
 
         public LCDPowerSummary(IMyTextSurface surface, IMyCubeBlock block, Vector2 size) : base(surface, block, size)
         {
@@ -297,8 +320,9 @@ namespace MahrianeIndustries.LCDInfo
             if (Sandbox.ModAPI.MyAPIGateway.Utilities?.IsDedicated ?? false)
                 return;
 
-            // Fix for issue #11 + multi-surface regression fix (mirrors Apex Update).
-            // Cheap no-op unless a foreign [Settings*] section is present on this block.
+            // Fix for issue #11 (leftover legacy sibling app sections can trigger
+            // a hang tied to grid-state changes like merge blocks). Cheap no-op
+            // unless a foreign [Settings*] section is actually present.
             ConfigHelpers.PurgeLegacyAppSections(myTerminalBlock, CONFIG_SECTION_ID);
 
             // Check if our app's config exists by looking for our section header
@@ -308,6 +332,28 @@ namespace MahrianeIndustries.LCDInfo
             LoadConfig();
 
             UpdateBlocks();
+            
+            // Update scroll offset if scrolling is enabled
+            if (toggleScroll)
+            {
+                ticksSinceLastScroll++;
+                if (ticksSinceLastScroll >= scrollSpeed)
+                {
+                    ticksSinceLastScroll = 0;
+                    if (reverseDirection)
+                        scrollOffset -= scrollLines;
+                    else
+                        scrollOffset += scrollLines;
+                    
+                    // Scroll offset will wrap around in the draw methods based on actual item count
+                }
+            }
+            else
+            {
+                // Reset scroll when disabled
+                scrollOffset = 0;
+                ticksSinceLastScroll = 0;
+            }
 
             var myFrame = mySurface.DrawFrame();
             var myViewport = new RectangleF((mySurface.TextureSize - mySurface.SurfaceSize) / 2f, mySurface.SurfaceSize);
@@ -623,11 +669,18 @@ namespace MahrianeIndustries.LCDInfo
         {
             try
             {
-                SurfaceDrawer.DrawOutputSprite(ref frame, ref position, surfaceData, "BAT", batteries.Sum(block => block.CurrentStoredPower), batteries.Sum(block => block.MaxStoredPower), showInactive, Unit.WattHours, true);
+                // BUG-FIX (TheBelgarion 2026-05-17): disabled/broken batteries still report
+                // their MaxStoredPower and CurrentStoredPower, which silently inflated the
+                // BAT MWh totals during remote building. Reactors don't show this because
+                // reactor.CurrentOutput/MaxOutput are 0 when off, so summing zeros is a
+                // no-op. For batteries we have to filter explicitly to working blocks.
+                var activeBatteries = batteries.Where(b => b.IsWorking).ToList();
+
+                SurfaceDrawer.DrawOutputSprite(ref frame, ref position, surfaceData, "BAT", activeBatteries.Sum(block => block.CurrentStoredPower), activeBatteries.Sum(block => block.MaxStoredPower), showInactive, Unit.WattHours, true);
 
                 // Always show battery output/input bars, even in compact mode
-                SurfaceDrawer.DrawOutputSprite(ref frame, ref position, surfaceData, " <<", batteries.Sum(block => block.CurrentOutput), batteries.Sum(block => block.MaxOutput), showInactive, Unit.Watt, false);
-                SurfaceDrawer.DrawOutputSprite(ref frame, ref position, surfaceData, " >>", batteries.Sum(block => block.CurrentInput), batteries.Sum(block => block.MaxInput), showInactive, Unit.Watt, false);
+                SurfaceDrawer.DrawOutputSprite(ref frame, ref position, surfaceData, " <<", activeBatteries.Sum(block => block.CurrentOutput), activeBatteries.Sum(block => block.MaxOutput), showInactive, Unit.Watt, false);
+                SurfaceDrawer.DrawOutputSprite(ref frame, ref position, surfaceData, " >>", activeBatteries.Sum(block => block.CurrentInput), activeBatteries.Sum(block => block.MaxInput), showInactive, Unit.Watt, false);
 
                 // If this is a corner LCD, no more data will be visible after the battery section.
                 if (compactMode) return;
@@ -693,9 +746,36 @@ namespace MahrianeIndustries.LCDInfo
                 MahSorting.SortBlocksByName(windTurbines);
 
                 int maxNameLength = (int)(mySurface.SurfaceSize.X > 300 ? 35 : 20);
-
-                foreach (var wt in windTurbines)
+                
+                // Calculate available lines for data based on remaining space from current position
+                float screenHeight = mySurface.SurfaceSize.Y;
+                float lineHeight = 30 * surfaceData.textSize;
+                float currentY = position.Y - surfaceData.viewPortOffsetY;
+                float remainingHeight = screenHeight - currentY;
+                int availableDataLines = Math.Max(1, (int)(remainingHeight / lineHeight));
+                
+                // Apply user-configured max list lines (0 = no limit)
+                if (maxListLines > 0)
+                    availableDataLines = Math.Min(availableDataLines, maxListLines);
+                
+                // Apply scrolling if enabled
+                int totalDataLines = windTurbines.Count;
+                int startIndex = 0;
+                
+                if (toggleScroll && totalDataLines > 0)
                 {
+                    // Normalize scroll offset to stay within bounds (use local variable)
+                    int normalizedOffset = ((scrollOffset % totalDataLines) + totalDataLines) % totalDataLines;
+                    startIndex = normalizedOffset;
+                }
+
+                // Draw turbines with scrolling/wrapping
+                int linesDrawn = 0;
+                for (int i = 0; i < totalDataLines && linesDrawn < availableDataLines; i++)
+                {
+                    int turbineIndex = (startIndex + i) % totalDataLines;
+                    var wt = windTurbines[turbineIndex];
+                    
                     var tb = wt as IMyTerminalBlock;
                     if (tb == null) continue;
 
@@ -722,6 +802,7 @@ namespace MahrianeIndustries.LCDInfo
                     SurfaceDrawer.DrawHalfBar(ref frame, position, surfaceData, TextAlignment.RIGHT, current, total, Unit.Watt, barColor);
 
                     position += surfaceData.newLine;
+                    linesDrawn++;
                 }
             }
             catch (Exception e)
@@ -741,9 +822,36 @@ namespace MahrianeIndustries.LCDInfo
                 MahSorting.SortBlocksByName(solarPanels);
 
                 int maxNameLength = (int)(mySurface.SurfaceSize.X > 300 ? 35 : 20);
-
-                foreach (var sp in solarPanels)
+                
+                // Calculate available lines for data based on remaining space from current position
+                float screenHeight = mySurface.SurfaceSize.Y;
+                float lineHeight = 30 * surfaceData.textSize;
+                float currentY = position.Y - surfaceData.viewPortOffsetY;
+                float remainingHeight = screenHeight - currentY;
+                int availableDataLines = Math.Max(1, (int)(remainingHeight / lineHeight));
+                
+                // Apply user-configured max list lines (0 = no limit)
+                if (maxListLines > 0)
+                    availableDataLines = Math.Min(availableDataLines, maxListLines);
+                
+                // Apply scrolling if enabled
+                int totalDataLines = solarPanels.Count;
+                int startIndex = 0;
+                
+                if (toggleScroll && totalDataLines > 0)
                 {
+                    // Normalize scroll offset to stay within bounds (use local variable)
+                    int normalizedOffset = ((scrollOffset % totalDataLines) + totalDataLines) % totalDataLines;
+                    startIndex = normalizedOffset;
+                }
+
+                // Draw panels with scrolling/wrapping
+                int linesDrawn = 0;
+                for (int i = 0; i < totalDataLines && linesDrawn < availableDataLines; i++)
+                {
+                    int panelIndex = (startIndex + i) % totalDataLines;
+                    var sp = solarPanels[panelIndex];
+                    
                     var tb = sp as IMyTerminalBlock;
                     if (tb == null) continue;
 
@@ -769,6 +877,7 @@ namespace MahrianeIndustries.LCDInfo
                     DrawRightHalfBarWithLabel(ref frame, position, MahDefinitions.WattFormat(sp.CurrentOutput), exposureCurrent, exposureTotal, barColor);
 
                     position += surfaceData.newLine;
+                    linesDrawn++;
                 }
             }
             catch (Exception e)
@@ -788,9 +897,36 @@ namespace MahrianeIndustries.LCDInfo
                 MahSorting.SortBlocksByName(reactors);
 
                 int maxNameLength = (int)(mySurface.SurfaceSize.X > 300 ? 35 : 20);
-
-                foreach (var rx in reactors)
+                
+                // Calculate available lines for data based on remaining space from current position
+                float screenHeight = mySurface.SurfaceSize.Y;
+                float lineHeight = 30 * surfaceData.textSize;
+                float currentY = position.Y - surfaceData.viewPortOffsetY;
+                float remainingHeight = screenHeight - currentY;
+                int availableDataLines = Math.Max(1, (int)(remainingHeight / lineHeight));
+                
+                // Apply user-configured max list lines (0 = no limit)
+                if (maxListLines > 0)
+                    availableDataLines = Math.Min(availableDataLines, maxListLines);
+                
+                // Apply scrolling if enabled
+                int totalDataLines = reactors.Count;
+                int startIndex = 0;
+                
+                if (toggleScroll && totalDataLines > 0)
                 {
+                    // Normalize scroll offset to stay within bounds (use local variable)
+                    int normalizedOffset = ((scrollOffset % totalDataLines) + totalDataLines) % totalDataLines;
+                    startIndex = normalizedOffset;
+                }
+
+                // Draw reactors with scrolling/wrapping
+                int linesDrawn = 0;
+                for (int i = 0; i < totalDataLines && linesDrawn < availableDataLines; i++)
+                {
+                    int reactorIndex = (startIndex + i) % totalDataLines;
+                    var rx = reactors[reactorIndex];
+                    
                     var tb = rx as IMyTerminalBlock;
                     if (tb == null) continue;
 
@@ -808,7 +944,7 @@ namespace MahrianeIndustries.LCDInfo
                     {
                         var items = new List<VRage.Game.ModAPI.Ingame.MyInventoryItem>();
                         inv.GetItems(items);
-                        foreach (var item in items.OrderBy(i => i.Type.SubtypeId))
+                        foreach (var item in items.OrderBy(itm => itm.Type.SubtypeId))
                         {
                             if (item == null) continue;
                             var typeId = item.Type.TypeId.Split('_')[1];
@@ -833,6 +969,7 @@ namespace MahrianeIndustries.LCDInfo
                     DrawRightHalfBarWithLabel(ref frame, position, MahDefinitions.WattFormat(rx.CurrentOutput), cur, tot, barColor);
 
                     position += surfaceData.newLine;
+                    linesDrawn++;
                 }
             }
             catch (Exception e)
@@ -920,8 +1057,36 @@ namespace MahrianeIndustries.LCDInfo
                 MahSorting.SortBlocksByName(engines);
 
                 int maxNameLength = (int)(mySurface.SurfaceSize.X > 300 ? 35 : 20);
-                foreach (var eng in engines)
+                
+                // Calculate available lines for data based on remaining space from current position
+                float screenHeight = mySurface.SurfaceSize.Y;
+                float lineHeight = 30 * surfaceData.textSize;
+                float currentY = position.Y - surfaceData.viewPortOffsetY;
+                float remainingHeight = screenHeight - currentY;
+                int availableDataLines = Math.Max(1, (int)(remainingHeight / lineHeight));
+                
+                // Apply user-configured max list lines (0 = no limit)
+                if (maxListLines > 0)
+                    availableDataLines = Math.Min(availableDataLines, maxListLines);
+                
+                // Apply scrolling if enabled
+                int totalDataLines = engines.Count;
+                int startIndex = 0;
+                
+                if (toggleScroll && totalDataLines > 0)
                 {
+                    // Normalize scroll offset to stay within bounds (use local variable)
+                    int normalizedOffset = ((scrollOffset % totalDataLines) + totalDataLines) % totalDataLines;
+                    startIndex = normalizedOffset;
+                }
+
+                // Draw engines with scrolling/wrapping
+                int linesDrawn = 0;
+                for (int i = 0; i < totalDataLines && linesDrawn < availableDataLines; i++)
+                {
+                    int engineIndex = (startIndex + i) % totalDataLines;
+                    var eng = engines[engineIndex];
+                    
                     var tb = eng as IMyTerminalBlock;
                     if (tb == null) continue;
                     if (tb.BlockDefinition.SubtypeName.IndexOf("Hydrogen", StringComparison.OrdinalIgnoreCase) < 0) continue;
@@ -947,6 +1112,7 @@ namespace MahrianeIndustries.LCDInfo
                     DrawRightHalfBarWithLabel(ref frame, position, MahDefinitions.WattFormat(((IMyPowerProducer)eng).CurrentOutput), cur, tot, barColor);
 
                     position += surfaceData.newLine;
+                    linesDrawn++;
                 }
             }
             catch (Exception e)

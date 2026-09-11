@@ -11,7 +11,7 @@ using VRageMath;
 
 namespace MahrianeIndustries.LCDInfo
 {
-    [MyTextSurfaceScript("LCDInfoScreenDetailedInfo", "$IOS LCD - DetailedInfo")]
+    [MyTextSurfaceScript("LCDInfoScreenDetailedInfo", "$IOS LCD - Detailed Info")]
     public class LCDDetailedInfo : MyTextSurfaceScriptBase
     {
         MyIni config = new MyIni();
@@ -20,6 +20,12 @@ namespace MahrianeIndustries.LCDInfo
 
         string searchId = "";
         bool showHeader = true;
+        bool toggleScroll = false;
+        bool reverseDirection = false;
+        int scrollSpeed = 60;
+        int scrollLines = 1;
+        int scrollOffset = 0;
+        int ticksSinceLastScroll = 0;
 
         IMyTextSurface mySurface;
         IMyTerminalBlock myTerminalBlock;
@@ -70,8 +76,10 @@ namespace MahrianeIndustries.LCDInfo
             sb.AppendLine($"[{CONFIG_SECTION_ID}]");
             sb.AppendLine();
             sb.AppendLine("; [ DETAILEDINFO - GENERAL OPTIONS ]");
-            sb.AppendLine($"SearchId={searchId}");
-            sb.AppendLine($"ShowHeader={showHeader}");
+            ConfigHelpers.AppendSearchIdConfig(sb, searchId);
+            ConfigHelpers.AppendShowHeaderConfig(sb, showHeader);
+            sb.AppendLine();
+            ConfigHelpers.AppendScrollingConfig(sb, "DETAILEDINFO", toggleScroll, reverseDirection, scrollSpeed, scrollLines, 0);
             sb.AppendLine();
             sb.AppendLine("; [ DETAILEDINFO - LAYOUT OPTIONS ]");
             sb.AppendLine($"TextSize={surfaceData.textSize}");
@@ -105,6 +113,16 @@ namespace MahrianeIndustries.LCDInfo
             searchId = config.Get(CONFIG_SECTION_ID, "SearchId").ToString(searchId);
             showHeader = config.Get(CONFIG_SECTION_ID, "ShowHeader").ToBoolean(showHeader);
 
+            // Read scrolling options
+            if (config.ContainsKey(CONFIG_SECTION_ID, "ToggleScroll"))
+                toggleScroll = config.Get(CONFIG_SECTION_ID, "ToggleScroll").ToBoolean(false);
+            if (config.ContainsKey(CONFIG_SECTION_ID, "ReverseDirection"))
+                reverseDirection = config.Get(CONFIG_SECTION_ID, "ReverseDirection").ToBoolean(false);
+            if (config.ContainsKey(CONFIG_SECTION_ID, "ScrollSpeed"))
+                scrollSpeed = Math.Max(1, config.Get(CONFIG_SECTION_ID, "ScrollSpeed").ToInt32(60));
+            if (config.ContainsKey(CONFIG_SECTION_ID, "ScrollLines"))
+                scrollLines = Math.Max(1, config.Get(CONFIG_SECTION_ID, "ScrollLines").ToInt32(1));
+
             // Read layout options
             surfaceData.textSize = config.Get(CONFIG_SECTION_ID, "TextSize").ToSingle(surfaceData.textSize);
             surfaceData.viewPortOffsetX = (int)config.Get(CONFIG_SECTION_ID, "ViewPortOffsetX").ToSingle(surfaceData.viewPortOffsetX);
@@ -119,16 +137,38 @@ namespace MahrianeIndustries.LCDInfo
 
         public override void Run()
         {
+            if (MyAPIGateway.Utilities?.IsDedicated ?? false)
+                return;
+
+            // Fix for issue #11 (leftover legacy sibling app sections can trigger
+            // a hang tied to grid-state changes like merge blocks). Cheap no-op
+            // unless a foreign [Settings*] section is actually present.
+            ConfigHelpers.PurgeLegacyAppSections(myTerminalBlock, CONFIG_SECTION_ID);
+
             try
             {
-                // Fix for issue #11 + multi-surface regression fix (mirrors Apex Update).
-                // Cheap no-op unless a foreign [Settings*] section is present on this block.
-                ConfigHelpers.PurgeLegacyAppSections(myTerminalBlock, CONFIG_SECTION_ID);
-
                 base.Run();
 
                 TryCreateSurfaceData();
                 ReadConfig();
+
+                if (toggleScroll)
+                {
+                    ticksSinceLastScroll += 100;  // Update100 fires every 100 ticks
+                    if (ticksSinceLastScroll >= scrollSpeed)
+                    {
+                        ticksSinceLastScroll = 0;
+                        if (reverseDirection)
+                            scrollOffset -= scrollLines;
+                        else
+                            scrollOffset += scrollLines;
+                    }
+                }
+                else
+                {
+                    scrollOffset = 0;
+                    ticksSinceLastScroll = 0;
+                }
 
                 var frame = mySurface.DrawFrame();
                 Vector2 position = new Vector2(surfaceData.viewPortOffsetX, surfaceData.viewPortOffsetY);
@@ -158,7 +198,6 @@ namespace MahrianeIndustries.LCDInfo
                     return;
                 }
 
-                // Get and display the detailed info (even if empty to avoid flickering)
                 string detailedInfo = targetBlock.DetailedInfo ?? "";
                 DrawDetailedInfo(ref frame, ref position, detailedInfo);
                 frame.Dispose();
@@ -209,37 +248,49 @@ namespace MahrianeIndustries.LCDInfo
         void DrawDetailedInfo(ref MySpriteDrawFrame frame, ref Vector2 position, string detailedInfo)
         {
             // Split by lines
-            string[] lines = detailedInfo.Split(new[] { '\r', '\n' }, StringSplitOptions.None);
+            string[] rawLines = detailedInfo.Split(new[] { '\r', '\n' }, StringSplitOptions.None);
 
             // Calculate max characters per line based on surface width and text size
             float availableWidth = mySurface.SurfaceSize.X - (surfaceData.viewPortOffsetX * 2);
-            int maxCharsPerLine = (int)(availableWidth / (surfaceData.textSize * 19)); // Approximate character width
+            int maxCharsPerLine = (int)(availableWidth / (surfaceData.textSize * 19));
 
-            foreach (string line in lines)
+            // Build flat list of display lines (applying word wrap)
+            List<string> displayLines = new List<string>();
+            foreach (string line in rawLines)
             {
                 if (string.IsNullOrEmpty(line))
                 {
-                    // Empty line - just advance position
-                    position += surfaceData.newLine;
+                    displayLines.Add("");
                     continue;
                 }
-
-                // Word wrap if line is too long
                 if (line.Length <= maxCharsPerLine)
                 {
-                    SurfaceDrawer.WriteTextSprite(ref frame, position, surfaceData, line, TextAlignment.LEFT, surfaceData.surface.ScriptForegroundColor);
-                    position += surfaceData.newLine;
+                    displayLines.Add(line);
                 }
                 else
                 {
-                    // Wrap long lines
-                    List<string> wrappedLines = WrapText(line, maxCharsPerLine);
-                    foreach (string wrappedLine in wrappedLines)
-                    {
-                        SurfaceDrawer.WriteTextSprite(ref frame, position, surfaceData, wrappedLine, TextAlignment.LEFT, surfaceData.surface.ScriptForegroundColor);
-                        position += surfaceData.newLine;
-                    }
+                    displayLines.AddRange(WrapText(line, maxCharsPerLine));
                 }
+            }
+
+            // Calculate how many lines fit on screen
+            float lineHeight = 30f * surfaceData.textSize;
+            float remainingHeight = mySurface.SurfaceSize.Y - position.Y;
+            int availableLines = Math.Max(1, (int)(remainingHeight / lineHeight));
+
+            int total = displayLines.Count;
+            int startIndex = 0;
+            if (toggleScroll && total > availableLines)
+            {
+                int normalizedOffset = ((scrollOffset % total) + total) % total;
+                startIndex = normalizedOffset;
+            }
+
+            for (int i = 0; i < availableLines && i < total; i++)
+            {
+                string displayLine = displayLines[(startIndex + i) % total];
+                SurfaceDrawer.WriteTextSprite(ref frame, position, surfaceData, displayLine, TextAlignment.LEFT, surfaceData.surface.ScriptForegroundColor);
+                position += surfaceData.newLine;
             }
         }
 

@@ -78,15 +78,14 @@ namespace MahrianeIndustries.LCDInfo
             sb.AppendLine($"[{CONFIG_SECTION_ID}]");
             sb.AppendLine();
             sb.AppendLine("; [ AIRLOCKMONITOR - GENERAL OPTIONS ]");
-            sb.AppendLine($"SearchId={searchId}");
-            sb.AppendLine($"ExcludeIds={(excludeIds != null && excludeIds.Count > 0 ? String.Join(", ", excludeIds.ToArray()) : "")}");
-            sb.AppendLine($"ShowHeader={surfaceData.showHeader}");
-            sb.AppendLine($"ShowSubgrids={surfaceData.showSubgrids}");
-            sb.AppendLine($"SubgridUpdateFrequency={surfaceData.subgridUpdateFrequency}");
-            sb.AppendLine("; Subgrid scan frequency: 1=fastest (60/sec), 10=normal (6/sec), 100=slowest (0.6/sec)");
-            sb.AppendLine($"UseColors={surfaceData.useColors}");
+            ConfigHelpers.AppendSearchIdConfig(sb, searchId);
+            ConfigHelpers.AppendExcludeIdsConfig(sb, excludeIds);
+            ConfigHelpers.AppendShowHeaderConfig(sb, surfaceData.showHeader);
+            ConfigHelpers.AppendShowSubgridsConfig(sb, surfaceData.showSubgrids);
+            ConfigHelpers.AppendSubgridUpdateFrequencyConfig(sb, surfaceData.subgridUpdateFrequency);
+            ConfigHelpers.AppendUseColorsConfig(sb, surfaceData.useColors);
+            ConfigHelpers.AppendScrollingConfig(sb, "AIRLOCKMONITOR", toggleScroll, reverseDirection, scrollSpeed, scrollLines, 0);
 
-            sb.AppendLine();
             sb.AppendLine("; [ AIRLOCKMONITOR - LAYOUT OPTIONS ]");
             sb.AppendLine($"TextSize={surfaceData.textSize}");
             sb.AppendLine($"ViewPortOffsetX={surfaceData.viewPortOffsetX}");
@@ -138,6 +137,15 @@ namespace MahrianeIndustries.LCDInfo
 
                     MahUtillities.TryGetConfigBool(config, CONFIG_SECTION_ID, "UseColors", ref surfaceData.useColors, ref configError);
 
+                    if (config.ContainsKey(CONFIG_SECTION_ID, "ToggleScroll"))
+                        toggleScroll = config.Get(CONFIG_SECTION_ID, "ToggleScroll").ToBoolean(false);
+                    if (config.ContainsKey(CONFIG_SECTION_ID, "ReverseDirection"))
+                        reverseDirection = config.Get(CONFIG_SECTION_ID, "ReverseDirection").ToBoolean(false);
+                    if (config.ContainsKey(CONFIG_SECTION_ID, "ScrollSpeed"))
+                        scrollSpeed = Math.Max(1, config.Get(CONFIG_SECTION_ID, "ScrollSpeed").ToInt32(60));
+                    if (config.ContainsKey(CONFIG_SECTION_ID, "ScrollLines"))
+                        scrollLines = Math.Max(1, config.Get(CONFIG_SECTION_ID, "ScrollLines").ToInt32(1));
+
                     CreateExcludeIdsList();
 
                     // Is Corner LCD?
@@ -154,6 +162,7 @@ namespace MahrianeIndustries.LCDInfo
                 else
                 {
                     MyLog.Default.WriteLine($"MahrianeIndustries.LCDInfo.LCDInfoScreenAirlockMonitorSummary: Config Syntax error at Line {result}");
+                    configError = true;
                 }
             }
             catch (Exception e)
@@ -185,8 +194,8 @@ namespace MahrianeIndustries.LCDInfo
         List<string> excludeIds = new List<string>();
         List<IMyDoor> doors = new List<IMyDoor>();
         List<IMyAirVent> airVents = new List<IMyAirVent>();
-        
-        // Cached subgrid collections (persisted between main grid scans)
+
+        // Cached subgrid collections
         List<IMyDoor> subgridDoors = new List<IMyDoor>();
         List<IMyAirVent> subgridAirVents = new List<IMyAirVent>();
 
@@ -198,6 +207,12 @@ namespace MahrianeIndustries.LCDInfo
         bool configError = false;
         bool isStation = false;
         Sandbox.ModAPI.Ingame.MyShipMass gridMass;
+        bool toggleScroll = false;
+        bool reverseDirection = false;
+        int scrollSpeed = 60;
+        int scrollLines = 1;
+        int scrollOffset = 0;
+        int ticksSinceLastScroll = 0;
 
         public LCDAirlockMonitorSummary(IMyTextSurface surface, IMyCubeBlock block, Vector2 size) : base(surface, block, size)
         {
@@ -218,8 +233,9 @@ namespace MahrianeIndustries.LCDInfo
             if (Sandbox.ModAPI.MyAPIGateway.Utilities?.IsDedicated ?? false)
                 return;
 
-            // Fix for issue #11 + multi-surface regression fix (mirrors Apex Update).
-            // Cheap no-op unless a foreign [Settings*] section is present on this block.
+            // Fix for issue #11 (leftover legacy sibling app sections can trigger
+            // a hang tied to grid-state changes like merge blocks). Cheap no-op
+            // unless a foreign [Settings*] section is actually present.
             ConfigHelpers.PurgeLegacyAppSections(myTerminalBlock, CONFIG_SECTION_ID);
 
             if (myTerminalBlock.CustomData.Length <= 0 || !myTerminalBlock.CustomData.Contains(CONFIG_SECTION_ID))
@@ -228,6 +244,24 @@ namespace MahrianeIndustries.LCDInfo
             LoadConfig();
 
             UpdateBlocks();
+
+            if (toggleScroll)
+            {
+                ticksSinceLastScroll += 10;
+                if (ticksSinceLastScroll >= scrollSpeed)
+                {
+                    ticksSinceLastScroll = 0;
+                    if (reverseDirection)
+                        scrollOffset -= scrollLines;
+                    else
+                        scrollOffset += scrollLines;
+                }
+            }
+            else
+            {
+                scrollOffset = 0;
+                ticksSinceLastScroll = 0;
+            }
 
             var myFrame = mySurface.DrawFrame();
             var myViewport = new RectangleF((mySurface.TextureSize - mySurface.SurfaceSize) / 2f, mySurface.SurfaceSize);
@@ -244,33 +278,49 @@ namespace MahrianeIndustries.LCDInfo
 
         void UpdateBlocks ()
         {
-            // Determine if we should scan subgrids this cycle
-            bool scanSubgrids = false;
-            if (surfaceData.showSubgrids)
-            {
-                subgridScanTick++;
-                if (subgridScanTick >= surfaceData.subgridUpdateFrequency / 10)
-                {
-                    subgridScanTick = 0;
-                    scanSubgrids = true;
-                }
-            }
-
-            doors.Clear();
-            airVents.Clear();
-
             var myCubeGrid = myTerminalBlock.CubeGrid as MyCubeGrid;
-
             if (myCubeGrid == null) return;
 
             IMyCubeGrid cubeGrid = myCubeGrid as IMyCubeGrid;
             isStation = cubeGrid.IsStatic;
             gridId = cubeGrid.CustomName;
 
-            // Always get main grid blocks
+            // Determine if we should scan subgrids on this tick
+            bool scanSubgrids = false;
+            if (surfaceData.showSubgrids)
+            {
+                subgridScanTick++;
+                if (subgridScanTick >= surfaceData.subgridUpdateFrequency / 10)  // Divide by 10 for Update10 timing
+                {
+                    subgridScanTick = 0;
+                    scanSubgrids = true;
+                }
+            }
+
+            // Always scan main grid blocks (instant updates)
             var mainBlocks = MahUtillities.GetBlocks(myCubeGrid, searchId, excludeIds, ref gridMass, false, false);
 
-            // Process main grid blocks
+            // Periodically update subgrid cache
+            if (scanSubgrids)
+            {
+                var allBlocks = MahUtillities.GetBlocks(myCubeGrid, searchId, excludeIds, ref gridMass, surfaceData.showSubgrids, false);
+                subgridDoors.Clear();
+                subgridAirVents.Clear();
+                foreach (var block in allBlocks)
+                {
+                    if (!mainBlocks.Contains(block))
+                    {
+                        if (block is IMyAirVent)
+                            subgridAirVents.Add((IMyAirVent)block);
+                        if (block is IMyDoor)
+                            subgridDoors.Add((IMyDoor)block);
+                    }
+                }
+            }
+
+            // Categorize main grid blocks
+            doors.Clear();
+            airVents.Clear();
             foreach (var myBlock in mainBlocks)
             {
                 if (myBlock == null) continue;
@@ -285,32 +335,7 @@ namespace MahrianeIndustries.LCDInfo
                 }
             }
 
-            // Periodically update subgrid cache
-            if (scanSubgrids)
-            {
-                var allBlocks = MahUtillities.GetBlocks(myCubeGrid, searchId, excludeIds, ref gridMass, true, false);
-                
-                subgridDoors.Clear();
-                subgridAirVents.Clear();
-                
-                // Extract subgrid-only blocks
-                foreach (var myBlock in allBlocks)
-                {
-                    if (mainBlocks.Contains(myBlock)) continue;
-                    if (myBlock == null) continue;
-
-                    if (myBlock is IMyAirVent)
-                    {
-                        subgridAirVents.Add((IMyAirVent)myBlock);
-                    }
-                    if (myBlock is IMyDoor)
-                    {
-                        subgridDoors.Add((IMyDoor)myBlock);
-                    }
-                }
-            }
-            
-            // Merge cached subgrid blocks
+            // Merge main (fresh) and subgrid (cached) collections
             doors.AddRange(subgridDoors);
             airVents.AddRange(subgridAirVents);
         }
@@ -352,18 +377,32 @@ namespace MahrianeIndustries.LCDInfo
         void DrawAirlockMonitorDoorSprite (ref MySpriteDrawFrame frame, ref Vector2 position)
         {
             if (compactMode) return;
-
             if (doors.Count <= 0) return;
 
-            // Sort airlock doors alphabetically by custom name
             MahSorting.SortBlocksByName(doors);
 
             SurfaceDrawer.WriteTextSprite(ref frame, position, surfaceData, $"Airlock Doors [{doors.Count}]", TextAlignment.LEFT, surfaceData.surface.ScriptForegroundColor);
             SurfaceDrawer.WriteTextSprite(ref frame, position, surfaceData, $"State", TextAlignment.RIGHT, surfaceData.surface.ScriptForegroundColor);
             position += surfaceData.newLine;
 
-            foreach (var door in doors)
+            int totalDoors = doors.Count;
+
+            // Calculate how many door rows fit in remaining screen space
+            float remainingHeight = mySurface.SurfaceSize.Y - (position.Y - surfaceData.viewPortOffsetY);
+            int availableLines = Math.Max(1, (int)(remainingHeight / (30 * surfaceData.textSize)));
+
+            // Apply scroll offset with wraparound
+            int startIndex = 0;
+            if (toggleScroll && totalDoors > 0)
             {
+                int normalizedOffset = ((scrollOffset % totalDoors) + totalDoors) % totalDoors;
+                startIndex = normalizedOffset;
+            }
+
+            int drawn = 0;
+            for (int i = 0; i < totalDoors && drawn < availableLines; i++)
+            {
+                var door = doors[(startIndex + i) % totalDoors];
                 if (door == null) continue;
 
                 var state = door.IsWorking ? "  On " : "  Off ";
@@ -372,6 +411,7 @@ namespace MahrianeIndustries.LCDInfo
                 var status = door.Status.ToString();
                 SurfaceDrawer.WriteTextSprite(ref frame, position, surfaceData, $"{status}", TextAlignment.RIGHT, !surfaceData.useColors ? surfaceData.surface.ScriptForegroundColor : status.Contains("Closed") ? Color.GreenYellow : Color.Orange);
                 position += surfaceData.newLine;
+                drawn++;
             }
         }
     }

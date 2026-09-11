@@ -105,14 +105,8 @@ namespace MahrianeIndustries.LCDInfo
                             addedOtherContent = true;
                         }
                     }
-                    else if (!inOurSection && addedOtherContent)
-                    {
-                        // Add any line that's not in our section
-                        sb.AppendLine(line);
-                    }
                     else if (!inOurSection && !string.IsNullOrWhiteSpace(trimmed))
                     {
-                        // First non-empty line before any section
                         sb.AppendLine(line);
                         addedOtherContent = true;
                     }
@@ -126,15 +120,16 @@ namespace MahrianeIndustries.LCDInfo
             sb.AppendLine($"[{CONFIG_SECTION_ID}]");
             sb.AppendLine();
             sb.AppendLine("; [ WEAPONS - GENERAL OPTIONS ]");
-            sb.AppendLine($"SearchId={searchId}");
-            sb.AppendLine($"ExcludeIds={(excludeIds != null && excludeIds.Count > 0 ? String.Join(", ", excludeIds.ToArray()) : "")}");
-            sb.AppendLine($"ShowHeader={surfaceData.showHeader}");
-            sb.AppendLine($"ShowSubgrids={surfaceData.showSubgrids}");
-            sb.AppendLine($"SubgridUpdateFrequency={surfaceData.subgridUpdateFrequency}");
-            sb.AppendLine("; Subgrid scan frequency: 1=fastest (60/sec), 10=normal (6/sec), 100=slowest (0.6/sec)");
-            sb.AppendLine($"UseColors={surfaceData.useColors}");
+            ConfigHelpers.AppendSearchIdConfig(sb, searchId);
+            ConfigHelpers.AppendItemFilterConfig(sb, itemFilter);
+            ConfigHelpers.AppendExcludeIdsConfig(sb, excludeIds);
+            ConfigHelpers.AppendShowHeaderConfig(sb, surfaceData.showHeader);
+            ConfigHelpers.AppendShowSubgridsConfig(sb, surfaceData.showSubgrids);
+            ConfigHelpers.AppendSubgridUpdateFrequencyConfig(sb, surfaceData.subgridUpdateFrequency);
+            ConfigHelpers.AppendUseColorsConfig(sb, surfaceData.useColors);
 
-            sb.AppendLine();
+            ConfigHelpers.AppendScrollingConfig(sb, "WEAPONS", toggleScroll, reverseDirection, scrollSpeed, scrollLines, maxListLines);
+
             sb.AppendLine("; [ WEAPONS - LAYOUT OPTIONS ]");
             sb.AppendLine($"TextSize={surfaceData.textSize}");
             sb.AppendLine($"ViewPortOffsetX={surfaceData.viewPortOffsetX}");
@@ -149,6 +144,13 @@ namespace MahrianeIndustries.LCDInfo
             sb.AppendLine($"ShowCannons={showCannons}");
             sb.AppendLine($"ShowCustom={showCustom}");
             sb.AppendLine($"DetailedInfo={detailedInfo}");
+
+            sb.AppendLine();
+            sb.AppendLine("; [ WEAPONS - AMMO ENTRIES (auto-populated) ]");
+            foreach (CargoItemDefinition itemDefinition in unknownItemDefinitions)
+            {
+                sb.AppendLine($"{itemDefinition.subtypeId}=0");
+            }
 
             sb.AppendLine();
 
@@ -199,11 +201,25 @@ namespace MahrianeIndustries.LCDInfo
                     MahUtillities.TryGetConfigBool(config, CONFIG_SECTION_ID, "DetailedInfo", ref detailedInfo, ref configError);
                     MahUtillities.TryGetConfigBool(config, CONFIG_SECTION_ID, "UseColors", ref surfaceData.useColors, ref configError);
 
+                    // Scrolling options (optional; defaults: off, forward, 60 ticks, 1 entry, 5 max)
+                    if (config.ContainsKey(CONFIG_SECTION_ID, "ToggleScroll"))
+                        toggleScroll = config.Get(CONFIG_SECTION_ID, "ToggleScroll").ToBoolean(false);
+                    if (config.ContainsKey(CONFIG_SECTION_ID, "ReverseDirection"))
+                        reverseDirection = config.Get(CONFIG_SECTION_ID, "ReverseDirection").ToBoolean(false);
+                    if (config.ContainsKey(CONFIG_SECTION_ID, "ScrollSpeed"))
+                        scrollSpeed = Math.Max(1, config.Get(CONFIG_SECTION_ID, "ScrollSpeed").ToInt32(60));
+                    if (config.ContainsKey(CONFIG_SECTION_ID, "ScrollLines"))
+                        scrollLines = Math.Max(1, config.Get(CONFIG_SECTION_ID, "ScrollLines").ToInt32(1));
+                    if (config.ContainsKey(CONFIG_SECTION_ID, "MaxListLines"))
+                        maxListLines = Math.Max(0, config.Get(CONFIG_SECTION_ID, "MaxListLines").ToInt32(5));
+
                     CreateExcludeIdsList();
+                    ConfigHelpers.ParseItemFilter(config, CONFIG_SECTION_ID, itemFilter);
                 }
                 else
                 {
                     MyLog.Default.WriteLine($"MahrianeIndustries.LCDInfo.LCDInfoScreenWeaponsSummary: Config Syntax error at Line {result}");
+                    configError = true;
                 }
                 
                 // Apply compact-mode overrides similar to Ores screen when on corner LCDs
@@ -253,19 +269,13 @@ namespace MahrianeIndustries.LCDInfo
                 }
             }
 
-            foreach (CargoItemDefinition definition in unknownItemDefinitions)
-            {
-                if (item_types.Contains(definition.typeId))
-                {
-                    itemDefinitions.Add(new CargoItemDefinition { typeId = definition.typeId, subtypeId = definition.subtypeId, displayName = definition.displayName, volume = definition.volume, minAmount = 0, sortId = definition.sortId });
-                }
-            }
         }
 
         IMyTextSurface mySurface;
         IMyTerminalBlock myTerminalBlock;
 
         List<string> excludeIds = new List<string>();
+        List<string> itemFilter = new List<string>();
         List<CargoItemDefinition> itemDefinitions = new List<CargoItemDefinition>();
         List<CargoItemDefinition> unknownItemDefinitions = new List<CargoItemDefinition>();
         List<IMyInventory> inventories = new List<IMyInventory>();
@@ -274,8 +284,8 @@ namespace MahrianeIndustries.LCDInfo
         List<IMyLargeInteriorTurret> interiorTurrets = new List<IMyLargeInteriorTurret>();
         List<IMyUserControllableGun> cannons = new List<IMyUserControllableGun>();
         List<IMyTurretControlBlock> customTurretControllers = new List<IMyTurretControlBlock>();
-        
-        // Cached subgrid blocks (persisted between main grid scans)
+
+        // Cached subgrid collections
         List<IMyInventory> subgridInventories = new List<IMyInventory>();
         List<IMyLargeTurretBase> subgridTurrets = new List<IMyLargeTurretBase>();
         List<IMyLargeInteriorTurret> subgridInteriorTurrets = new List<IMyLargeInteriorTurret>();
@@ -294,8 +304,16 @@ namespace MahrianeIndustries.LCDInfo
         string gridId = "Unknown grid";
         int subgridScanTick = 0;
         bool configError = false;
+        bool needsCleanup = true;
         bool compactMode = false;
         bool isStation = false;
+        bool toggleScroll = false;
+        bool reverseDirection = false;
+        int scrollSpeed = 60;
+        int scrollLines = 1;
+        int scrollOffset = 0;
+        int ticksSinceLastScroll = 0;
+        int maxListLines = 5;
         Sandbox.ModAPI.Ingame.MyShipMass gridMass;
 
         public LCDWeaponsSummaryInfo(IMyTextSurface surface, IMyCubeBlock block, Vector2 size) : base(surface, block, size)
@@ -317,18 +335,51 @@ namespace MahrianeIndustries.LCDInfo
             if (Sandbox.ModAPI.MyAPIGateway.Utilities?.IsDedicated ?? false)
                 return;
 
-            // Fix for issue #11 + multi-surface regression fix (mirrors Apex Update).
-            // Cheap no-op unless a foreign [Settings*] section is present on this block.
+            // Fix for issue #11 (leftover legacy sibling app sections can trigger
+            // a hang tied to grid-state changes like merge blocks). Cheap no-op
+            // unless a foreign [Settings*] section is actually present.
             ConfigHelpers.PurgeLegacyAppSections(myTerminalBlock, CONFIG_SECTION_ID);
 
             MahDefinitions.LoadExternalItems();
             if (myTerminalBlock.CustomData.Length <= 0 || !myTerminalBlock.CustomData.Contains(CONFIG_SECTION_ID))
                 CreateConfig();
+            else if (needsCleanup) { needsCleanup = false; ConfigHelpers.StripExcessBlankLines(myTerminalBlock); }
 
             LoadConfig();
 
+            // Update scroll offset if scrolling is enabled
+            if (toggleScroll)
+            {
+                ticksSinceLastScroll += 10;  // Update10 fires every 10 ticks — must increment by 10
+                if (ticksSinceLastScroll >= scrollSpeed)
+                {
+                    ticksSinceLastScroll = 0;
+                    if (reverseDirection)
+                        scrollOffset -= scrollLines;
+                    else
+                        scrollOffset += scrollLines;
+                }
+            }
+            else
+            {
+                scrollOffset = 0;
+                ticksSinceLastScroll = 0;
+            }
+
             UpdateBlocksAndInventories();
             UpdateContents();
+
+            // Auto-add newly discovered modded items to config
+            foreach (CargoItemDefinition def in unknownItemDefinitions)
+            {
+                if (!config.ContainsKey(CONFIG_SECTION_ID, def.subtypeId))
+                {
+                    CreateConfig();
+                    MyIniParseResult r;
+                    config.TryParse(myTerminalBlock.CustomData, CONFIG_SECTION_ID, out r);
+                    break;
+                }
+            }
 
             pixelPerChar = MahDefinitions.pixelPerChar * surfaceData.textSize;
             var myFrame = mySurface.DrawFrame();
@@ -507,6 +558,7 @@ namespace MahrianeIndustries.LCDInfo
         {
             try
             {
+                unknownItemDefinitions.Clear();
                 cargo.Clear();
 
                 foreach (var inventory in inventories)
@@ -527,6 +579,11 @@ namespace MahrianeIndustries.LCDInfo
 
                         if (item_types.Contains(typeId))
                         {
+                            // Item-level filter (separate from SearchId, which filters BLOCKS).
+                            // Skip items whose subtype doesn't match the ItemFilter list.
+                            if (!ConfigHelpers.ItemPassesFilter(itemFilter, subtypeId))
+                                continue;
+
                             if (!cargo.ContainsKey(subtypeId))
                             {
                                 cargo.Add(subtypeId, new CargoItemType { item = item, amount = currentAmount });
@@ -543,6 +600,7 @@ namespace MahrianeIndustries.LCDInfo
                                     itemDefinition.sortId = "misc"; // default category
 
                                     itemDefinitions.Add(itemDefinition);
+                                    unknownItemDefinitions.Add(itemDefinition);
                                 }
 
                                 cargo[subtypeId].definition = itemDefinition;
@@ -611,15 +669,40 @@ namespace MahrianeIndustries.LCDInfo
             
             try
             {
+                // Check if there's space for header (1 line) + at least first turret (3 lines) = 4 lines minimum
+                float spaceNeeded = 4 * surfaceData.newLine.Y;
+                var viewportBottom = (mySurface.TextureSize.Y + mySurface.SurfaceSize.Y) / 2f;
+                float spaceAvailable = viewportBottom - position.Y;
+                if (spaceAvailable < spaceNeeded)
+                    return; // Skip entire category if not enough space
+
                 SurfaceDrawer.WriteTextSprite(ref frame, position, surfaceData, $"Interior Turrets [{interiorTurrets.Count}]", TextAlignment.LEFT, surfaceData.surface.ScriptForegroundColor);
                 SurfaceDrawer.WriteTextSprite(ref frame, position, surfaceData, "Settings", TextAlignment.RIGHT, surfaceData.surface.ScriptForegroundColor);
                 position += surfaceData.newLine;
 
-                foreach (IMyLargeInteriorTurret turret in interiorTurrets)
                 {
-                    if (turret == null) continue;
+                    float lineHeight = 30f * surfaceData.textSize;
+                    float currentY = position.Y - surfaceData.viewPortOffsetY;
+                    float remainingHeight = mySurface.SurfaceSize.Y - currentY;
+                    int availableSlots = Math.Max(1, (int)(remainingHeight / (lineHeight * 3)));
+                    if (maxListLines > 0) availableSlots = Math.Min(availableSlots, maxListLines);
 
-                    DrawDetailedTurretSprite(ref frame, ref position, turret);
+                    int total = interiorTurrets.Count;
+                    int startIndex = 0;
+                    if (toggleScroll && total > availableSlots)
+                    {
+                        int normalizedOffset = ((scrollOffset % total) + total) % total;
+                        startIndex = normalizedOffset;
+                    }
+
+                    int slotsDrawn = 0;
+                    for (int i = 0; i < total && slotsDrawn < availableSlots; i++)
+                    {
+                        var turret = interiorTurrets[(startIndex + i) % total];
+                        if (turret == null) continue;
+                        DrawDetailedTurretSprite(ref frame, ref position, turret);
+                        slotsDrawn++;
+                    }
                 }
                 position += surfaceData.newLine;
             }
@@ -671,6 +754,13 @@ namespace MahrianeIndustries.LCDInfo
 
             try
             {
+                // Check if there's space for header (1 line) + at least first turret (3 lines) = 4 lines minimum
+                float spaceNeeded = 4 * surfaceData.newLine.Y;
+                var viewportBottom = (mySurface.TextureSize.Y + mySurface.SurfaceSize.Y) / 2f;
+                float spaceAvailable = viewportBottom - position.Y;
+                if (spaceAvailable < spaceNeeded)
+                    return; // Skip entire category if not enough space
+
                 // Sort turrets alphabetically by custom name
                 MahSorting.SortBlocksByName(turrets);
 
@@ -678,11 +768,31 @@ namespace MahrianeIndustries.LCDInfo
                 SurfaceDrawer.WriteTextSprite(ref frame, position, surfaceData, "Settings", TextAlignment.RIGHT, surfaceData.surface.ScriptForegroundColor);
                 position += surfaceData.newLine;
 
-                foreach (IMyLargeTurretBase turret in turrets)
+                // Each turret entry = 3 lines; calculate available slots from remaining screen space
+                const int turretLinesPerEntry = 3;
                 {
-                    if (turret == null) continue;
+                    float lineHeight = 30f * surfaceData.textSize;
+                    float currentY = position.Y - surfaceData.viewPortOffsetY;
+                    float remainingHeight = mySurface.SurfaceSize.Y - currentY;
+                    int availableSlots = Math.Max(1, (int)(remainingHeight / (lineHeight * turretLinesPerEntry)));
+                    if (maxListLines > 0) availableSlots = Math.Min(availableSlots, maxListLines);
 
-                    DrawDetailedTurretSprite(ref frame, ref position, turret);
+                    int total = turrets.Count;
+                    int startIndex = 0;
+                    if (toggleScroll && total > availableSlots)
+                    {
+                        int normalizedOffset = ((scrollOffset % total) + total) % total;
+                        startIndex = normalizedOffset;
+                    }
+
+                    int slotsDrawn = 0;
+                    for (int i = 0; i < total && slotsDrawn < availableSlots; i++)
+                    {
+                        var turret = turrets[(startIndex + i) % total];
+                        if (turret == null) continue;
+                        DrawDetailedTurretSprite(ref frame, ref position, turret);
+                        slotsDrawn++;
+                    }
                 }
                 position += surfaceData.newLine;
             }
@@ -733,6 +843,13 @@ namespace MahrianeIndustries.LCDInfo
 
             try
             {
+                // Check if there's space for header (1 line) + at least first controller (3 lines) = 4 lines minimum
+                float spaceNeeded = 4 * surfaceData.newLine.Y;
+                var viewportBottom = (mySurface.TextureSize.Y + mySurface.SurfaceSize.Y) / 2f;
+                float spaceAvailable = viewportBottom - position.Y;
+                if (spaceAvailable < spaceNeeded)
+                    return; // Skip entire category if not enough space
+
                 float pixelPerChar = MahDefinitions.pixelPerChar * surfaceData.textSize;
                 Vector2 stateOffset = new Vector2(pixelPerChar * 19, 0);
                 var maxNameLength = (int)(mySurface.SurfaceSize.X > 300 ? 35 : 20);
@@ -744,11 +861,26 @@ namespace MahrianeIndustries.LCDInfo
                 SurfaceDrawer.WriteTextSprite(ref frame, position, surfaceData, "Settings", TextAlignment.RIGHT, surfaceData.surface.ScriptForegroundColor);
                 position += surfaceData.newLine;
 
-                foreach (IMyTurretControlBlock controller in customTurretControllers)
                 {
-                    if (controller == null) continue;
+                    float lineHeight = 30f * surfaceData.textSize;
+                    float currentY = position.Y - surfaceData.viewPortOffsetY;
+                    float remainingHeight = mySurface.SurfaceSize.Y - currentY;
+                    int availableSlots = Math.Max(1, (int)(remainingHeight / (lineHeight * 3)));
+                    if (maxListLines > 0) availableSlots = Math.Min(availableSlots, maxListLines);
+                    int total = customTurretControllers.Count;
+                    int startIndex = 0;
+                    if (toggleScroll && total > availableSlots)
+                    {
+                        int normalizedOffset = ((scrollOffset % total) + total) % total;
+                        startIndex = normalizedOffset;
+                    }
+                    int slotsDrawn = 0;
+                    for (int i = 0; i < total && slotsDrawn < availableSlots; i++)
+                    {
+                        var controller = customTurretControllers[(startIndex + i) % total];
+                        if (controller == null) continue;
 
-                    var controllerName = controller.CustomName.Length > maxNameLength ? controller.CustomName.Substring(0, maxNameLength) : controller.CustomName;
+                        var controllerName = controller.CustomName.Length > maxNameLength ? controller.CustomName.Substring(0, maxNameLength) : controller.CustomName;
 
                     _cachedTurretTools.Clear();
                     controller.GetTools(_cachedTurretTools);
@@ -783,7 +915,9 @@ namespace MahrianeIndustries.LCDInfo
 
                                 if (s.Length > 2)
                                 {
-                                    bool isMinutes = s.Contains("min");
+                                    // s is a string[]; .Contains("min") here was Enumerable.Contains (exact
+                                    // element equality) and therefore always false. Check the actual line we parse.
+                                    bool isMinutes = s[2].Contains("min");
                                     rechargeInfo = (isMinutes ? s[2].Replace(" min", "") : s[2].Replace(" sec", "")).Replace("Fully recharged in: ", "");
                                     int.TryParse(rechargeInfo, out secondsLeftToRecharge);
                                     secondsLeftToRecharge *= isMinutes ? 60 : 1;
@@ -851,6 +985,8 @@ namespace MahrianeIndustries.LCDInfo
                         position += surfaceData.newLine;
                     }
                     position += surfaceData.newLine;
+                        slotsDrawn++;
+                    }
                 }
                 position += surfaceData.newLine;
             }
@@ -1031,6 +1167,13 @@ namespace MahrianeIndustries.LCDInfo
 
             try
             {
+                // Check if there's space for header (1 line) + at least first cannon (3 lines) = 4 lines minimum
+                float spaceNeeded = 4 * surfaceData.newLine.Y;
+                var viewportBottom = (mySurface.TextureSize.Y + mySurface.SurfaceSize.Y) / 2f;
+                float spaceAvailable = viewportBottom - position.Y;
+                if (spaceAvailable < spaceNeeded)
+                    return; // Skip entire category if not enough space
+
                 float pixelPerChar = MahDefinitions.pixelPerChar * surfaceData.textSize;
                 Vector2 stateOffset = new Vector2(pixelPerChar * 19, 0);
                 var maxNameLength = (int)(mySurface.SurfaceSize.X > 300 ? 35 : 20);
@@ -1042,9 +1185,26 @@ namespace MahrianeIndustries.LCDInfo
                 SurfaceDrawer.WriteTextSprite(ref frame, position, surfaceData, "", TextAlignment.RIGHT, surfaceData.surface.ScriptForegroundColor);
                 position += surfaceData.newLine;
 
-                foreach (IMyUserControllableGun cannon in cannons)
                 {
-                    if (cannon == null) continue;
+                    float lineHeight = 30f * surfaceData.textSize;
+                    float currentY = position.Y - surfaceData.viewPortOffsetY;
+                    float remainingHeight = mySurface.SurfaceSize.Y - currentY;
+                    int availableSlots = Math.Max(1, (int)(remainingHeight / (lineHeight * 3)));
+                    if (maxListLines > 0) availableSlots = Math.Min(availableSlots, maxListLines);
+
+                    int total = cannons.Count;
+                    int startIndex = 0;
+                    if (toggleScroll && total > availableSlots)
+                    {
+                        int normalizedOffset = ((scrollOffset % total) + total) % total;
+                        startIndex = normalizedOffset;
+                    }
+
+                    int slotsDrawn = 0;
+                    for (int i = 0; i < total && slotsDrawn < availableSlots; i++)
+                    {
+                        var cannon = cannons[(startIndex + i) % total];
+                        if (cannon == null) continue;
 
                     var cannonName = cannon.CustomName.Length > maxNameLength ? cannon.CustomName.Substring(0, maxNameLength) : cannon.CustomName;
                     var currentVolume = (float)cannon.GetInventory(0).CurrentVolume;
@@ -1069,7 +1229,9 @@ namespace MahrianeIndustries.LCDInfo
 
                         if (s.Length > 2)
                         {
-                            bool isMinutes = s.Contains("min");
+                            // s is a string[]; .Contains("min") here was Enumerable.Contains (exact
+                            // element equality) and therefore always false. Check the actual line we parse.
+                            bool isMinutes = s[2].Contains("min");
                             rechargeInfo = (isMinutes ? s[2].Replace(" min", "") : s[2].Replace(" sec", "")).Replace("Fully recharged in: ", "");
                             int.TryParse(rechargeInfo, out secondsLeftToRecharge);
                             secondsLeftToRecharge *= isMinutes ? 60 : 1;
@@ -1121,6 +1283,8 @@ namespace MahrianeIndustries.LCDInfo
                     SurfaceDrawer.DrawHalfBar(ref frame, position, surfaceData, TextAlignment.LEFT, currentVolume, maximumVolume, Unit.Percent, !surfaceData.useColors ? surfaceData.surface.ScriptForegroundColor : Color.Orange);
                     SurfaceDrawer.WriteTextSprite(ref frame, position, surfaceData, $"", TextAlignment.RIGHT, surfaceData.surface.ScriptForegroundColor);
                     position += surfaceData.newLine;
+                        slotsDrawn++;
+                    }
                 }
 
                 position += surfaceData.newLine;

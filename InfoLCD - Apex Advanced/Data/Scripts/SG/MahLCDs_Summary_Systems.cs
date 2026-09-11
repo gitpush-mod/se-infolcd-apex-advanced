@@ -96,17 +96,16 @@ namespace MahrianeIndustries.LCDInfo
             sb.AppendLine($"[{CONFIG_SECTION_ID}]");
             sb.AppendLine();
             sb.AppendLine("; [ SYSTEMS - GENERAL OPTIONS ]");
-            sb.AppendLine($"SearchId={searchId}");
-            sb.AppendLine($"ExcludeIds={(excludeIds != null && excludeIds.Count > 0 ? String.Join(", ", excludeIds.ToArray()) : "")}");
-            sb.AppendLine($"ShowHeader={surfaceData.showHeader}");
-            sb.AppendLine($"ShowSummary={surfaceData.showSummary}");
-            sb.AppendLine($"ShowRatio={surfaceData.showRatio}");
-            sb.AppendLine($"ShowBars={surfaceData.showBars}");
-            sb.AppendLine($"ShowSubgrids={surfaceData.showSubgrids}");
-            sb.AppendLine($"SubgridUpdateFrequency={surfaceData.subgridUpdateFrequency}");
-            sb.AppendLine("; Subgrid scan frequency: 1=fastest (60/sec), 10=normal (6/sec), 100=slowest (0.6/sec)");
-            sb.AppendLine($"ShowDocked={surfaceData.showDocked}");
-            sb.AppendLine($"UseColors={surfaceData.useColors}");
+            ConfigHelpers.AppendSearchIdConfig(sb, searchId);
+            ConfigHelpers.AppendExcludeIdsConfig(sb, excludeIds);
+            ConfigHelpers.AppendShowHeaderConfig(sb, surfaceData.showHeader);
+            ConfigHelpers.AppendShowSummaryConfig(sb, surfaceData.showSummary);
+            ConfigHelpers.AppendShowRatioConfig(sb, surfaceData.showRatio);
+            ConfigHelpers.AppendShowBarsConfig(sb, surfaceData.showBars);
+            ConfigHelpers.AppendShowSubgridsConfig(sb, surfaceData.showSubgrids);
+            ConfigHelpers.AppendSubgridUpdateFrequencyConfig(sb, surfaceData.subgridUpdateFrequency);
+            ConfigHelpers.AppendShowDockedConfig(sb, surfaceData.showDocked);
+            ConfigHelpers.AppendUseColorsConfig(sb, surfaceData.useColors);
 
             sb.AppendLine();
             sb.AppendLine("; [ SYSTEMS - LAYOUT OPTIONS ]");
@@ -221,6 +220,7 @@ namespace MahrianeIndustries.LCDInfo
                 else
                 {
                     MyLog.Default.WriteLine($"MahrianeIndustries.LCDInfo.LCDInfoScreenSystemsSummary: Config Syntax error at Line {result}");
+                    configError = true;
                 }
             }
             catch (Exception e)
@@ -257,8 +257,8 @@ namespace MahrianeIndustries.LCDInfo
         List<IMyGasTank> tanks = new List<IMyGasTank>();
         List<BlockStateData> blocks = new List<BlockStateData>();
         List<IMyPowerProducer> powerProducers = new List<IMyPowerProducer>();
-        
-        // Cached subgrid blocks (persisted between main grid scans)
+
+        // Cached subgrid collections
         List<IMyBatteryBlock> subgridBatteries = new List<IMyBatteryBlock>();
         List<IMyPowerProducer> subgridHydrogenEngines = new List<IMyPowerProducer>();
         List<IMySolarPanel> subgridSolarPanels = new List<IMySolarPanel>();
@@ -303,8 +303,9 @@ namespace MahrianeIndustries.LCDInfo
             if (Sandbox.ModAPI.MyAPIGateway.Utilities?.IsDedicated ?? false)
                 return;
 
-            // Fix for issue #11 + multi-surface regression fix (mirrors Apex Update).
-            // Cheap no-op unless a foreign [Settings*] section is present on this block.
+            // Fix for issue #11 (leftover legacy sibling app sections can trigger
+            // a hang tied to grid-state changes like merge blocks). Cheap no-op
+            // unless a foreign [Settings*] section is actually present.
             ConfigHelpers.PurgeLegacyAppSections(myTerminalBlock, CONFIG_SECTION_ID);
 
             if (myTerminalBlock.CustomData.Length <= 0 || !myTerminalBlock.CustomData.Contains(CONFIG_SECTION_ID))
@@ -333,132 +334,117 @@ namespace MahrianeIndustries.LCDInfo
         {
             try
             {
-                // Determine if we should scan subgrids this cycle
-                bool scanSubgrids = false;
-                if (surfaceData.showSubgrids)
-                {
-                    subgridScanTick++;
-                    if (subgridScanTick >= surfaceData.subgridUpdateFrequency / 10)
-                    {
-                        subgridScanTick = 0;
-                        scanSubgrids = true;
-                    }
-                }
-
-                blocks.Clear();
-                hydrogenEngines.Clear();
-                solarPanels.Clear();
-                reactors.Clear();
-                tanks.Clear();
-                powerProducers.Clear();
-                damagedBlocksCounter = 0;
-
                 var myCubeGrid = myTerminalBlock.CubeGrid as MyCubeGrid;
-
                 if (myCubeGrid == null) return;
 
                 IMyCubeGrid cubeGrid = myCubeGrid as IMyCubeGrid;
                 isStation = cubeGrid.IsStatic;
                 gridId = cubeGrid.CustomName;
 
-                // Always scan main grid
-                var mainGridBlocks = MahUtillities.GetBlocks(myCubeGrid, searchId, excludeIds, ref gridMass, false);
-                
-                // Periodically scan subgrids
-                if (scanSubgrids)
+                // Determine if we should scan subgrids on this tick
+                bool scanSubgrids = false;
+                if (surfaceData.showSubgrids)
                 {
-                    var allBlocks = MahUtillities.GetBlocks(myCubeGrid, searchId, excludeIds, ref gridMass, true);
-                    
-                    // Clear cached subgrid collections
-                    subgridBatteries.Clear();
-                    subgridHydrogenEngines.Clear();
-                    subgridSolarPanels.Clear();
-                    subgridReactors.Clear();
-                    subgridTanks.Clear();
-                    subgridBlocks.Clear();
-                    subgridPowerProducers.Clear();
-                    
-                    // Get power blocks from full scan
-                    var allPowerBlocks = MahUtillities.GetPowerBlocks(allBlocks);
-                    var mainPowerBlocks = MahUtillities.GetPowerBlocks(mainGridBlocks);
-                    
-                    // Cache subgrid-only power blocks
-                    foreach (var battery in allPowerBlocks.Batteries)
-                        if (!mainPowerBlocks.Batteries.Contains(battery))
-                            subgridBatteries.Add(battery);
-                    
-                    foreach (var engine in allPowerBlocks.HydrogenEngines)
-                        if (!mainPowerBlocks.HydrogenEngines.Contains(engine))
-                            subgridHydrogenEngines.Add(engine);
-                    
-                    foreach (var panel in allPowerBlocks.SolarPanels)
-                        if (!mainPowerBlocks.SolarPanels.Contains(panel))
-                            subgridSolarPanels.Add(panel);
-                    
-                    foreach (var reactor in allPowerBlocks.Reactors)
-                        if (!mainPowerBlocks.Reactors.Contains(reactor))
-                            subgridReactors.Add(reactor);
-                    
-                    foreach (var producer in allPowerBlocks.AllPowerProducers)
-                        if (!mainPowerBlocks.AllPowerProducers.Contains(producer))
-                            subgridPowerProducers.Add(producer);
-                    
-                    // Cache subgrid blocks and tanks
-                    foreach (var block in allBlocks)
+                    subgridScanTick++;
+                    if (subgridScanTick >= surfaceData.subgridUpdateFrequency / 10)  // Divide by 10 for Update10 timing
                     {
-                        if (block == null || mainGridBlocks.Contains(block)) continue;
-                        subgridBlocks.Add(block);
-                        if (block is IMyGasTank)
-                            subgridTanks.Add((IMyGasTank)block);
+                        subgridScanTick = 0;
+                        scanSubgrids = true;
                     }
                 }
-                
-                // Get main grid power blocks
-                var powerBlocks = MahUtillities.GetPowerBlocks(mainGridBlocks);
-                
-                // Merge main with cached subgrids
-                batteries = new List<IMyBatteryBlock>(powerBlocks.Batteries);
+
+                // Always scan main grid blocks (instant updates)
+                var mainBlocks = MahUtillities.GetBlocks(myCubeGrid, searchId, excludeIds, ref gridMass, false);
+                var mainPowerBlocks = MahUtillities.GetPowerBlocks(mainBlocks);
+
+                // Periodically update subgrid cache
+                if (scanSubgrids)
+                {
+                    var allBlocks = MahUtillities.GetBlocks(myCubeGrid, searchId, excludeIds, ref gridMass, surfaceData.showSubgrids);
+                    var allPowerBlocks = MahUtillities.GetPowerBlocks(allBlocks);
+
+                    // Extract subgrid-only power blocks
+                    subgridBatteries.Clear();
+                    foreach (var bat in allPowerBlocks.Batteries)
+                        if (!mainPowerBlocks.Batteries.Contains(bat))
+                            subgridBatteries.Add(bat);
+
+                    subgridHydrogenEngines.Clear();
+                    foreach (var eng in allPowerBlocks.HydrogenEngines)
+                        if (!mainPowerBlocks.HydrogenEngines.Contains(eng))
+                            subgridHydrogenEngines.Add(eng);
+
+                    subgridSolarPanels.Clear();
+                    foreach (var sol in allPowerBlocks.SolarPanels)
+                        if (!mainPowerBlocks.SolarPanels.Contains(sol))
+                            subgridSolarPanels.Add(sol);
+
+                    subgridReactors.Clear();
+                    foreach (var rea in allPowerBlocks.Reactors)
+                        if (!mainPowerBlocks.Reactors.Contains(rea))
+                            subgridReactors.Add(rea);
+
+                    subgridPowerProducers.Clear();
+                    foreach (var pow in allPowerBlocks.AllPowerProducers)
+                        if (!mainPowerBlocks.AllPowerProducers.Contains(pow))
+                            subgridPowerProducers.Add(pow);
+
+                    // Extract subgrid-only blocks for tanks and general processing
+                    subgridBlocks.Clear();
+                    foreach (var block in allBlocks)
+                        if (!mainBlocks.Contains(block))
+                            subgridBlocks.Add(block);
+
+                    subgridTanks.Clear();
+                    foreach (var block in subgridBlocks)
+                        if (block is IMyGasTank)
+                            subgridTanks.Add((IMyGasTank)block);
+                }
+
+                // Merge main (fresh) and subgrid (cached) collections
+                batteries.Clear();
+                batteries.AddRange(mainPowerBlocks.Batteries);
                 batteries.AddRange(subgridBatteries);
-                
-                hydrogenEngines.AddRange(powerBlocks.HydrogenEngines);
+
+                hydrogenEngines.Clear();
+                hydrogenEngines.AddRange(mainPowerBlocks.HydrogenEngines);
                 hydrogenEngines.AddRange(subgridHydrogenEngines);
-                
-                solarPanels.AddRange(powerBlocks.SolarPanels);
+
+                solarPanels.Clear();
+                solarPanels.AddRange(mainPowerBlocks.SolarPanels);
                 solarPanels.AddRange(subgridSolarPanels);
-                
-                reactors.AddRange(powerBlocks.Reactors);
+
+                reactors.Clear();
+                reactors.AddRange(mainPowerBlocks.Reactors);
                 reactors.AddRange(subgridReactors);
-                
-                powerProducers.AddRange(powerBlocks.AllPowerProducers);
+
+                powerProducers.Clear();
+                powerProducers.AddRange(mainPowerBlocks.AllPowerProducers);
                 powerProducers.AddRange(subgridPowerProducers);
 
-                // Process main grid blocks
-                foreach (var myBlock in mainGridBlocks)
-                {
-                    if (myBlock == null) continue;
-
-                    IMyTerminalBlock block = (IMyTerminalBlock)myBlock;
-                    BlockStateData blockData = new BlockStateData(block);
-                    blocks.Add(blockData);
-
-                    if (!blockData.IsFullIntegrity) damagedBlocksCounter++;
-
-                    if (myBlock is IMyGasTank)
-                        tanks.Add((IMyGasTank)myBlock);
-                }
-                
-                // Add cached subgrid blocks
-                foreach (var myBlock in subgridBlocks)
-                {
-                    if (myBlock == null) continue;
-                    IMyTerminalBlock block = (IMyTerminalBlock)myBlock;
-                    BlockStateData blockData = new BlockStateData(block);
-                    blocks.Add(blockData);
-                    if (!blockData.IsFullIntegrity) damagedBlocksCounter++;
-                }
-                
-                // Add cached subgrid tanks
+                tanks.Clear();
                 tanks.AddRange(subgridTanks);
+                foreach (var block in mainBlocks)
+                    if (block is IMyGasTank)
+                        tanks.Add((IMyGasTank)block);
+
+                // Process all blocks for state data and damage counting
+                blocks.Clear();
+                damagedBlocksCounter = 0;
+                var allCurrentBlocks = new List<IMyCubeBlock>();
+                allCurrentBlocks.AddRange(mainBlocks);
+                allCurrentBlocks.AddRange(subgridBlocks);
+
+                foreach (var myBlock in allCurrentBlocks)
+                {
+                    if (myBlock == null) continue;
+
+                    IMyTerminalBlock block = (IMyTerminalBlock)myBlock;
+                    BlockStateData blockData = new BlockStateData(block);
+                    blocks.Add(blockData);
+
+                    if (!blockData.IsFullIntegrity) damagedBlocksCounter++;
+                }
 
                 // Calculate reactor load
                 reactorsCurrentVolume = 0.0f;

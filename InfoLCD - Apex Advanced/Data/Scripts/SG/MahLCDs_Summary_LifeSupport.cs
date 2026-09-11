@@ -85,16 +85,33 @@ namespace MahrianeIndustries.LCDInfo
             sb.AppendLine($"[{CONFIG_SECTION_ID}]");
             sb.AppendLine();
             sb.AppendLine("; [ LIFESUPPORT - GENERAL OPTIONS ]");
-            sb.AppendLine($"SearchId={searchId}");
-            sb.AppendLine($"ExcludeIds={(excludeIds != null && excludeIds.Count > 0 ? String.Join(", ", excludeIds.ToArray()) : "Airlock,")}");
-            sb.AppendLine($"ShowHeader={surfaceData.showHeader}");
-            sb.AppendLine($"ShowSubgrids={surfaceData.showSubgrids}");
-            sb.AppendLine($"SubgridUpdateFrequency={surfaceData.subgridUpdateFrequency}");
-            sb.AppendLine("; Subgrid scan frequency: 1=fastest (60/sec), 10=normal (6/sec), 100=slowest (0.6/sec)");
-            sb.AppendLine($"ShowDocked={surfaceData.showDocked}");
-            sb.AppendLine($"UseColors={surfaceData.useColors}");
+            ConfigHelpers.AppendSearchIdConfig(sb, searchId);
+            ConfigHelpers.AppendExcludeIdsConfig(sb, excludeIds, "Airlock,");
+            ConfigHelpers.AppendShowHeaderConfig(sb, surfaceData.showHeader);
+            ConfigHelpers.AppendShowSubgridsConfig(sb, surfaceData.showSubgrids);
+            ConfigHelpers.AppendSubgridUpdateFrequencyConfig(sb, surfaceData.subgridUpdateFrequency);
+            ConfigHelpers.AppendShowDockedConfig(sb, surfaceData.showDocked);
+            ConfigHelpers.AppendUseColorsConfig(sb, surfaceData.useColors);
 
             sb.AppendLine();
+            sb.AppendLine("; [ LIFESUPPORT - SCROLLING OPTIONS ]");
+            sb.AppendLine($"ToggleScroll={toggleScroll}");
+            sb.AppendLine("; Enable scrolling through air vents that don't fit on screen");
+            sb.AppendLine("; Set to 'true' to activate. Scrolling only occurs when there's overflow data.");
+            sb.AppendLine();
+            sb.AppendLine($"ReverseDirection={reverseDirection}");
+            sb.AppendLine("; Scroll direction: 'false' scrolls up (bottom items appear), 'true' scrolls down (top items appear)");
+            sb.AppendLine("; The list wraps around, so you'll eventually see all items in a continuous loop");
+            sb.AppendLine();
+            sb.AppendLine($"ScrollSpeed={scrollSpeed}");
+            sb.AppendLine("; Time between scroll steps in game ticks (60 ticks \u2248 1 second at normal game speed)");
+            sb.AppendLine("; Lower = faster scrolling, Higher = slower scrolling");
+            sb.AppendLine();
+            sb.AppendLine($"ScrollLines={scrollLines}");
+            sb.AppendLine("; Number of lines to scroll per step");
+            sb.AppendLine("; Set to 1 for smooth scrolling, higher values for faster navigation");
+            sb.AppendLine();
+
             sb.AppendLine("; [ LIFESUPPORT - LAYOUT OPTIONS ]");
             sb.AppendLine($"TextSize={surfaceData.textSize}");
             sb.AppendLine($"ViewPortOffsetX={surfaceData.viewPortOffsetX}");
@@ -114,24 +131,6 @@ namespace MahrianeIndustries.LCDInfo
             sb.AppendLine();
             sb.AppendLine("; [ LIFESUPPORT - ITEM THRESHOLDS ]");
             sb.AppendLine($"IceMinAmount={iceMinAmount}");
-            sb.AppendLine();
-
-            sb.AppendLine("; [ LIFESUPPORT - SCROLLING OPTIONS ]");
-            sb.AppendLine($"ToggleScroll={toggleScroll}");
-            sb.AppendLine("; Enable scrolling through air vents that don't fit on screen");
-            sb.AppendLine("; Set to 'true' to activate. Scrolling only occurs when there's overflow data.");
-            sb.AppendLine();
-            sb.AppendLine($"ReverseDirection={reverseDirection}");
-            sb.AppendLine("; Scroll direction: 'false' scrolls up (bottom items appear), 'true' scrolls down (top items appear)");
-            sb.AppendLine("; The list wraps around, so you'll eventually see all items in a continuous loop");
-            sb.AppendLine();
-            sb.AppendLine($"ScrollSpeed={scrollSpeed}");
-            sb.AppendLine("; Time between scroll steps in game ticks (60 ticks \u2248 1 second at normal game speed)");
-            sb.AppendLine("; Lower = faster scrolling, Higher = slower scrolling");
-            sb.AppendLine();
-            sb.AppendLine($"ScrollLines={scrollLines}");
-            sb.AppendLine("; Number of lines to scroll per step");
-            sb.AppendLine("; Set to 1 for smooth scrolling, higher values for faster navigation");
             sb.AppendLine();
 
             myTerminalBlock.CustomData = sb.ToString();
@@ -219,6 +218,7 @@ namespace MahrianeIndustries.LCDInfo
                 else
                 {
                     MyLog.Default.WriteLine($"MahrianeIndustries.LCDInfo.LCDInfoScreenLifeSupportSummary: Config Syntax error at Line {result}");
+                    configError = true;
                 }
             }
             catch(Exception e)
@@ -270,14 +270,14 @@ namespace MahrianeIndustries.LCDInfo
         List<IMyGasTank> tanks = new List<IMyGasTank>();
         List<IMyPowerProducer> powerProducers = new List<IMyPowerProducer>();
     List<IMyAirVent> airVents = new List<IMyAirVent>();
-    
-    // Cached subgrid collections (persisted between main grid scans)
-    List<IMyBatteryBlock> subgridBatteries = new List<IMyBatteryBlock>();
-    List<IMyGasGenerator> subgridGenerators = new List<IMyGasGenerator>();
-    List<IMyReactor> subgridReactors = new List<IMyReactor>();
-    List<IMyGasTank> subgridTanks = new List<IMyGasTank>();
-    List<IMyPowerProducer> subgridPowerProducers = new List<IMyPowerProducer>();
-    List<IMyAirVent> subgridAirVents = new List<IMyAirVent>();
+
+        // Cached subgrid collections
+        List<IMyBatteryBlock> subgridBatteries = new List<IMyBatteryBlock>();
+        List<IMyGasGenerator> subgridGenerators = new List<IMyGasGenerator>();
+        List<IMyReactor> subgridReactors = new List<IMyReactor>();
+        List<IMyGasTank> subgridTanks = new List<IMyGasTank>();
+        List<IMyPowerProducer> subgridPowerProducers = new List<IMyPowerProducer>();
+        List<IMyAirVent> subgridAirVents = new List<IMyAirVent>();
 
     // Reusable lists to avoid GC allocations
     List<VRage.Game.ModAPI.Ingame.MyInventoryItem> _cachedInventoryItems = new List<VRage.Game.ModAPI.Ingame.MyInventoryItem>();
@@ -325,8 +325,9 @@ namespace MahrianeIndustries.LCDInfo
             if (Sandbox.ModAPI.MyAPIGateway.Utilities?.IsDedicated ?? false)
                 return;
 
-            // Fix for issue #11 + multi-surface regression fix (mirrors Apex Update).
-            // Cheap no-op unless a foreign [Settings*] section is present on this block.
+            // Fix for issue #11 (leftover legacy sibling app sections can trigger
+            // a hang tied to grid-state changes like merge blocks). Cheap no-op
+            // unless a foreign [Settings*] section is actually present.
             ConfigHelpers.PurgeLegacyAppSections(myTerminalBlock, CONFIG_SECTION_ID);
 
             // Check if our app's config exists by looking for our section header
@@ -374,48 +375,88 @@ namespace MahrianeIndustries.LCDInfo
 
         void UpdateBlocks ()
         {
-            // Determine if we should scan subgrids this cycle
-            bool scanSubgrids = false;
-            if (surfaceData.showSubgrids)
-            {
-                subgridScanTick++;
-                if (subgridScanTick >= surfaceData.subgridUpdateFrequency / 10)
-                {
-                    subgridScanTick = 0;
-                    scanSubgrids = true;
-                }
-            }
-
             try
             {
                 var myCubeGrid = myTerminalBlock.CubeGrid as MyCubeGrid;
-
                 if (myCubeGrid == null) return;
 
                 IMyCubeGrid cubeGrid = myCubeGrid as IMyCubeGrid;
                 isStation = cubeGrid.IsStatic;
                 gridId = cubeGrid.CustomName;
 
-                // Always get main grid blocks
+                // Determine if we should scan subgrids on this tick
+                bool scanSubgrids = false;
+                if (surfaceData.showSubgrids)
+                {
+                    subgridScanTick++;
+                    if (subgridScanTick >= surfaceData.subgridUpdateFrequency / 10)  // Divide by 10 for Update10 timing
+                    {
+                        subgridScanTick = 0;
+                        scanSubgrids = true;
+                    }
+                }
+
+                // Always scan main grid blocks (instant updates)
                 var mainBlocks = MahUtillities.GetBlocks(myCubeGrid, searchId, excludeIds, ref gridMass, false);
+                var mainPowerBlocks = MahUtillities.GetPowerBlocks(mainBlocks);
+
+                // Periodically update subgrid cache
+                if (scanSubgrids)
+                {
+                    var allBlocks = MahUtillities.GetBlocks(myCubeGrid, searchId, excludeIds, ref gridMass, surfaceData.showSubgrids);
+                    var allPowerBlocks = MahUtillities.GetPowerBlocks(allBlocks);
+
+                    // Extract subgrid-only power blocks
+                    subgridBatteries.Clear();
+                    foreach (var bat in allPowerBlocks.Batteries)
+                        if (!mainPowerBlocks.Batteries.Contains(bat))
+                            subgridBatteries.Add(bat);
+
+                    subgridReactors.Clear();
+                    foreach (var rea in allPowerBlocks.Reactors)
+                        if (!mainPowerBlocks.Reactors.Contains(rea))
+                            subgridReactors.Add(rea);
+
+                    subgridPowerProducers.Clear();
+                    foreach (var pow in allPowerBlocks.AllPowerProducers)
+                        if (!mainPowerBlocks.AllPowerProducers.Contains(pow))
+                            subgridPowerProducers.Add(pow);
+
+                    // Extract subgrid-only blocks for generators, tanks, and air vents
+                    subgridGenerators.Clear();
+                    subgridTanks.Clear();
+                    subgridAirVents.Clear();
+                    foreach (var block in allBlocks)
+                    {
+                        if (!mainBlocks.Contains(block))
+                        {
+                            if (block is IMyGasGenerator)
+                                subgridGenerators.Add((IMyGasGenerator)block);
+                            else if (block is IMyGasTank)
+                                subgridTanks.Add((IMyGasTank)block);
+                            else if (block is IMyAirVent)
+                                subgridAirVents.Add((IMyAirVent)block);
+                        }
+                    }
+                }
+
+                // Merge main (fresh) and subgrid (cached) collections
+                batteries.Clear();
+                batteries.AddRange(mainPowerBlocks.Batteries);
+                batteries.AddRange(subgridBatteries);
+
+                reactors.Clear();
+                reactors.AddRange(mainPowerBlocks.Reactors);
+                reactors.AddRange(subgridReactors);
 
                 powerProducers.Clear();
+                powerProducers.AddRange(mainPowerBlocks.AllPowerProducers);
+                powerProducers.AddRange(subgridPowerProducers);
+
+                // Categorize main grid blocks for other types
                 generators.Clear();
-                batteries.Clear();
-                reactors.Clear();
                 tanks.Clear();
                 airVents.Clear();
-
-                oxygenTanks = 0;
-                hydrogenTanks = 0;
-
-                // Process main grid power blocks
-                var powerBlocks = MahUtillities.GetPowerBlocks(mainBlocks);
-                batteries = powerBlocks.Batteries;
-                reactors = powerBlocks.Reactors;
-                powerProducers = powerBlocks.AllPowerProducers;
-
-                // Process main grid blocks
                 foreach (var myBlock in mainBlocks)
                 {
                     if (myBlock == null) continue;
@@ -434,63 +475,14 @@ namespace MahrianeIndustries.LCDInfo
                     }
                 }
 
-                // Periodically update subgrid cache
-                if (scanSubgrids)
-                {
-                    var allBlocks = MahUtillities.GetBlocks(myCubeGrid, searchId, excludeIds, ref gridMass, true);
-                    
-                    subgridBatteries.Clear();
-                    subgridReactors.Clear();
-                    subgridPowerProducers.Clear();
-                    subgridGenerators.Clear();
-                    subgridTanks.Clear();
-                    subgridAirVents.Clear();
-                    
-                    // Extract subgrid-only power blocks
-                    var allPowerBlocks = MahUtillities.GetPowerBlocks(allBlocks);
-                    var mainPowerBlocks = MahUtillities.GetPowerBlocks(mainBlocks);
-                    
-                    foreach (var battery in allPowerBlocks.Batteries)
-                        if (!mainPowerBlocks.Batteries.Contains(battery))
-                            subgridBatteries.Add(battery);
-                    
-                    foreach (var reactor in allPowerBlocks.Reactors)
-                        if (!mainPowerBlocks.Reactors.Contains(reactor))
-                            subgridReactors.Add(reactor);
-                    
-                    foreach (var producer in allPowerBlocks.AllPowerProducers)
-                        if (!mainPowerBlocks.AllPowerProducers.Contains(producer))
-                            subgridPowerProducers.Add(producer);
-                    
-                    // Extract subgrid-only blocks
-                    foreach (var myBlock in allBlocks)
-                    {
-                        if (mainBlocks.Contains(myBlock)) continue;
-                        if (myBlock == null) continue;
-
-                        if (myBlock is IMyGasGenerator)
-                        {
-                            subgridGenerators.Add((IMyGasGenerator)myBlock);
-                        }
-                        else if (myBlock is IMyGasTank)
-                        {
-                            subgridTanks.Add((IMyGasTank)myBlock);
-                        }
-                        else if (myBlock is IMyAirVent)
-                        {
-                            subgridAirVents.Add((IMyAirVent)myBlock);
-                        }
-                    }
-                }
-                
-                // Merge cached subgrid blocks
-                batteries.AddRange(subgridBatteries);
-                reactors.AddRange(subgridReactors);
-                powerProducers.AddRange(subgridPowerProducers);
+                // Merge subgrid collections
                 generators.AddRange(subgridGenerators);
                 tanks.AddRange(subgridTanks);
                 airVents.AddRange(subgridAirVents);
 
+                // Separate tank counts
+                oxygenTanks = 0;
+                hydrogenTanks = 0;
                 var separatedTanks = MahUtillities.SeparateGasTanks(tanks);
                 hydrogenTanks = separatedTanks.HydrogenCount;
                 oxygenTanks = separatedTanks.OxygenCount;
@@ -553,7 +545,11 @@ namespace MahrianeIndustries.LCDInfo
 
                 if (showBatteries)
                 {
-                    SurfaceDrawer.DrawOutputSprite(ref frame, ref position, surfaceData, "BAT", batteries.Sum(block => block.CurrentStoredPower), batteries.Sum(block => block.MaxStoredPower), true, Unit.WattHours, true);
+                    // Filter to working batteries only — disabled/broken batteries still report
+                    // MaxStoredPower and CurrentStoredPower, which would inflate the total.
+                    // See MahLCDs_Summary_Power.cs DrawBatterySprite for the same fix.
+                    var activeBatteries = batteries.Where(b => b.IsWorking).ToList();
+                    SurfaceDrawer.DrawOutputSprite(ref frame, ref position, surfaceData, "BAT", activeBatteries.Sum(block => block.CurrentStoredPower), activeBatteries.Sum(block => block.MaxStoredPower), true, Unit.WattHours, true);
                 }
                 if (tanks.Count > 0)
                 {
@@ -663,42 +659,24 @@ namespace MahrianeIndustries.LCDInfo
                     try
                     {
                         level = vent.GetOxygenLevel();
-                        statusText = vent.Status.ToString();
                         isIntake = vent.Depressurize; // Depressurize mode = air intake
-                        var upper = statusText.ToUpperInvariant();
-                        // Normalize status labels and assign colors
-                        string statusWord = upper;
-                        if (upper.StartsWith("DEPRESSURIZ"))
+                        // Use GetOxygenLevel() as primary signal — vent.Status has known SE API bugs
+                        // (VentStatus.Depressurized may never emit, or may emit incorrectly for sealed rooms).
+                        string statusWord;
+                        if (level >= 0.95f)
                         {
-                            if (upper == "DEPRESSURIZING")
-                            {
-                                statusWord = "DEPRESSURIZING";
-                                statusColor = Color.Gold;
-                            }
-                            else
-                            {
-                                statusWord = "DEPRESSURIZED";
-                                statusColor = Color.IndianRed;
-                            }
+                            statusWord = "PRESSURIZED";
+                            statusColor = Color.YellowGreen;
                         }
-                        else if (upper.StartsWith("PRESSURIZ"))
+                        else if (level > 0.01f)
                         {
-                            if (upper == "PRESSURIZING")
-                            {
-                                statusWord = "PRESSURIZING";
-                                statusColor = Color.Gold;
-                            }
-                            else
-                            {
-                                statusWord = "PRESSURIZED";
-                                statusColor = Color.YellowGreen;
-                            }
+                            statusWord = isIntake ? "DEPRESSURIZING" : "PRESSURIZING";
+                            statusColor = Color.Gold;
                         }
                         else
                         {
-                            // Fallback/unknown: keep default color
-                            statusWord = upper;
-                            statusColor = surfaceData.surface.ScriptForegroundColor;
+                            statusWord = "DEPRESSURIZED";
+                            statusColor = Color.IndianRed;
                         }
 
                         // We'll draw a constant-width bracket shell in white, then overlay the centered status word in color (keeps brackets white, width constant)
