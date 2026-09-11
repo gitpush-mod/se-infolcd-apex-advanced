@@ -139,14 +139,8 @@ namespace MahrianeIndustries.LCDInfo
                             addedOtherContent = true;
                         }
                     }
-                    else if (!inOurSection && addedOtherContent)
-                    {
-                        // Add any line that's not in our section
-                        sb.AppendLine(line);
-                    }
                     else if (!inOurSection && !string.IsNullOrWhiteSpace(trimmed))
                     {
-                        // First non-empty line before any section
                         sb.AppendLine(line);
                         addedOtherContent = true;
                     }
@@ -161,37 +155,40 @@ namespace MahrianeIndustries.LCDInfo
             sb.AppendLine();
             sb.AppendLine("; [ CARGO - GENERAL OPTIONS ]");
             sb.AppendLine($"SearchId={(!string.IsNullOrEmpty(searchId) ? searchId : "*")}");
+            sb.AppendLine("; Block name filter: Use '*' for all, or text to match block names (case-insensitive substring match)");
+            sb.AppendLine("; Examples: 'Cargo' matches 'Main Cargo', 'Engineering,Medical' matches blocks containing either word");
             sb.AppendLine($"ExcludeIds={string.Join(",", excludeIds)}");
-            sb.AppendLine($"ShowHeader={surfaceData.showHeader}");
-            sb.AppendLine($"ShowSummary={surfaceData.showSummary}");
-            sb.AppendLine($"ShowMissing={surfaceData.showMissing}");
-            sb.AppendLine($"ShowBars={surfaceData.showBars}");
-            sb.AppendLine($"ShowSubgrids={surfaceData.showSubgrids}");
-            sb.AppendLine($"SubgridUpdateFrequency={surfaceData.subgridUpdateFrequency}");
-            sb.AppendLine("; Subgrid scan frequency: 1=fastest (60/sec), 10=normal (6/sec), 100=slowest (0.6/sec)");
-            sb.AppendLine($"ShowDocked={surfaceData.showDocked}");
-            sb.AppendLine($"UseColors={surfaceData.useColors}");
+            sb.AppendLine("; Exclude blocks containing these words (comma-separated, case-insensitive)");
+            sb.AppendLine("; Example: 'Airlock,Backup' excludes blocks with 'Airlock' or 'Backup' in their names");
+            ConfigHelpers.AppendShowHeaderConfig(sb, surfaceData.showHeader);
+            ConfigHelpers.AppendShowSummaryConfig(sb, surfaceData.showSummary);
+            ConfigHelpers.AppendShowMissingConfig(sb, surfaceData.showMissing);
+            ConfigHelpers.AppendShowBarsConfig(sb, surfaceData.showBars);
+            ConfigHelpers.AppendShowSubgridsConfig(sb, surfaceData.showSubgrids);
+            ConfigHelpers.AppendSubgridUpdateFrequencyConfig(sb, surfaceData.subgridUpdateFrequency);
+            ConfigHelpers.AppendShowDockedConfig(sb, surfaceData.showDocked);
+            ConfigHelpers.AppendUseColorsConfig(sb, surfaceData.useColors);
 
             sb.AppendLine();
             sb.AppendLine("; [ CARGO - SCROLLING OPTIONS ]");
-            sb.AppendLine($"ToggleScroll=false");
+            sb.AppendLine($"ToggleScroll={toggleScroll}");
             sb.AppendLine("; Enable scrolling to view categories that don't fit on screen");
             sb.AppendLine("; Set to 'true' to activate. Scrolling only occurs when there's overflow data.");
             sb.AppendLine();
-            sb.AppendLine($"ReverseDirection=false");
+            sb.AppendLine($"ReverseDirection={reverseDirection}");
             sb.AppendLine("; Scroll direction: 'false' scrolls up (bottom items appear), 'true' scrolls down (top items appear)");
             sb.AppendLine("; The list wraps around, so you'll eventually see all items in a continuous loop");
             sb.AppendLine();
-            sb.AppendLine($"ScrollSpeed=60");
+            sb.AppendLine($"ScrollSpeed={scrollSpeed}");
             sb.AppendLine("; Time between scroll steps in game ticks (60 ticks \u2248 1 second at normal game speed)");
             sb.AppendLine("; Lower = faster scrolling, Higher = slower scrolling");
             sb.AppendLine();
-            sb.AppendLine($"ScrollLines=1");
+            sb.AppendLine($"ScrollLines={scrollLines}");
             sb.AppendLine("; Number of lines to scroll per step");
             sb.AppendLine("; Set to 1 for smooth scrolling, higher values for faster navigation");
             sb.AppendLine();
 
-            sb.AppendLine("; [ CARGO - LAYOUT OPTIONS ]");
+            sb.AppendLine("; [ CARGO - LAYOUT OPTIONS ]");;
             sb.AppendLine($"TextSize={surfaceData.textSize}");
             sb.AppendLine($"ViewPortOffsetX={surfaceData.viewPortOffsetX}");
             sb.AppendLine($"ViewPortOffsetY={surfaceData.viewPortOffsetY}");
@@ -294,6 +291,7 @@ namespace MahrianeIndustries.LCDInfo
                 else
                 {
                     MyLog.Default.WriteLine($"MahrianeIndustries.LCDInfo.LCDCargoSummaryInfo: Config Syntax error at Line {result}");
+                    configError = true;
                 }
 
                 CreateCargoItemDefinitionList();                    
@@ -374,6 +372,7 @@ namespace MahrianeIndustries.LCDInfo
         string gridId = "Unknown grid";
         int subgridScanTick = 0;
         bool configError = false;
+        bool needsCleanup = true;
         bool compactMode = false;
         bool isStation = false;
         Sandbox.ModAPI.Ingame.MyShipMass gridMass;
@@ -403,18 +402,32 @@ namespace MahrianeIndustries.LCDInfo
             if (Sandbox.ModAPI.MyAPIGateway.Utilities?.IsDedicated ?? false)
                 return;
 
-            // Fix for issue #11 + multi-surface regression fix (mirrors Apex Update).
-            // Cheap no-op unless a foreign [Settings*] section is present on this block.
+            // Fix for issue #11 (leftover legacy sibling app sections can trigger
+            // a hang tied to grid-state changes like merge blocks). Cheap no-op
+            // unless a foreign [Settings*] section is actually present.
             ConfigHelpers.PurgeLegacyAppSections(myTerminalBlock, CONFIG_SECTION_ID);
 
             MahDefinitions.LoadExternalItems();
             if (myTerminalBlock.CustomData.Length <= 0 || !myTerminalBlock.CustomData.Contains(CONFIG_SECTION_ID))
                 CreateConfig();
+            else if (needsCleanup) { needsCleanup = false; ConfigHelpers.StripExcessBlankLines(myTerminalBlock); }
 
             LoadConfig();
 
             UpdateInventories();
             UpdateContents();
+
+            // Auto-add newly discovered modded items to config
+            foreach (CargoItemDefinition def in unknownItemDefinitions)
+            {
+                if (!config.ContainsKey(CONFIG_SECTION_ID, def.subtypeId))
+                {
+                    CreateConfig();
+                    MyIniParseResult r;
+                    config.TryParse(myTerminalBlock.CustomData, CONFIG_SECTION_ID, out r);
+                    break;
+                }
+            }
 
             // Update scroll position if enabled
             if (toggleScroll)
@@ -452,45 +465,43 @@ namespace MahrianeIndustries.LCDInfo
         {
             try
             {
-                // Determine if we should scan subgrids this cycle
-                bool scanSubgrids = false;
-                if (surfaceData.showSubgrids)
-                {
-                    subgridScanTick++;
-                    if (subgridScanTick >= surfaceData.subgridUpdateFrequency / 10)
-                    {
-                        subgridScanTick = 0;
-                        scanSubgrids = true;
-                    }
-                }
-
-                inventories.Clear();
-
                 var myCubeGrid = myTerminalBlock.CubeGrid as MyCubeGrid;
-
                 if (myCubeGrid == null) return;
 
                 IMyCubeGrid cubeGrid = myCubeGrid as IMyCubeGrid;
                 isStation = cubeGrid.IsStatic;
                 gridId = cubeGrid.CustomName;
 
-                // Always get main grid inventories
-                var mainInventories = MahUtillities.GetInventories(myCubeGrid, searchId, excludeIds, ref gridMass, false, surfaceData.showDocked);
-                inventories.AddRange(mainInventories);
-                
-                // Periodically update subgrid cache
+                // Determine if we should scan subgrids/docked on this tick
+                bool scanSubgrids = false;
+                if (surfaceData.showSubgrids || surfaceData.showDocked)
+                {
+                    subgridScanTick++;
+                    if (subgridScanTick >= surfaceData.subgridUpdateFrequency / 10)  // Divide by 10 for Update10 timing
+                    {
+                        subgridScanTick = 0;
+                        scanSubgrids = true;
+                    }
+                }
+
+                // Always scan main grid inventories (instant updates)
+                var mainInventories = MahUtillities.GetInventories(myCubeGrid, searchId, excludeIds, ref gridMass, false, false);
+
+                // Periodically update subgrid/docked inventory cache
                 if (scanSubgrids)
                 {
-                    var allInventories = MahUtillities.GetInventories(myCubeGrid, searchId, excludeIds, ref gridMass, true, surfaceData.showDocked);
+                    var allInventories = MahUtillities.GetInventories(myCubeGrid, searchId, excludeIds, ref gridMass, surfaceData.showSubgrids, surfaceData.showDocked);
                     subgridInventories.Clear();
-                    
-                    // Extract subgrid-only inventories
-                    foreach (var inv in allInventories)
-                        if (!mainInventories.Contains(inv))
-                            subgridInventories.Add(inv);
+                    foreach (var inventory in allInventories)
+                    {
+                        if (!mainInventories.Contains(inventory))
+                            subgridInventories.Add(inventory);
+                    }
                 }
-                
-                // Merge cached subgrid inventories
+
+                // Merge main (fresh) and subgrid (cached) inventories
+                inventories.Clear();
+                inventories.AddRange(mainInventories);
                 inventories.AddRange(subgridInventories);
             }
             catch (Exception e)
@@ -503,9 +514,9 @@ namespace MahrianeIndustries.LCDInfo
         {
             try
             {
+                unknownItemDefinitions.Clear();
                 foreach (var bucket in categoryItems.Values)
                     bucket.Clear();
-                unknownItemDefinitions.Clear();
 
                 foreach (var inventory in inventories)
                 {

@@ -78,18 +78,22 @@ namespace MahrianeIndustries.LCDInfo
             sb.AppendLine();
             sb.AppendLine("; [ CONTAINER - GENERAL OPTIONS ]");
             sb.AppendLine($"SearchId={(!string.IsNullOrEmpty(searchId) ? searchId : "*")}");
+            sb.AppendLine("; Block name filter: Use '*' for all, or text to match block names (case-insensitive substring match)");
+            sb.AppendLine("; Examples: 'Cargo' matches 'Main Cargo', 'Engineering,Medical' matches blocks containing either word");
             sb.AppendLine($"ExcludeIds={string.Join(",", excludeIds)}");
-            sb.AppendLine($"ShowHeader={surfaceData.showHeader}");
-            sb.AppendLine($"ShowSummary={surfaceData.showSummary}");
-            sb.AppendLine($"ShowMissing={surfaceData.showMissing}");
-            sb.AppendLine($"ShowBars={surfaceData.showBars}");
-            sb.AppendLine($"ShowSubgrids={surfaceData.showSubgrids}");
-            sb.AppendLine($"SubgridUpdateFrequency={surfaceData.subgridUpdateFrequency}");
-            sb.AppendLine("; Subgrid scan frequency: 1=fastest (60/sec), 10=normal (6/sec), 100=slowest (0.6/sec)");
-            sb.AppendLine($"ShowDocked={surfaceData.showDocked}");
-            sb.AppendLine($"UseColors={surfaceData.useColors}");
+            sb.AppendLine("; Exclude blocks containing these words (comma-separated, case-insensitive)");
+            sb.AppendLine("; Example: 'Airlock,Backup' excludes blocks with 'Airlock' or 'Backup' in their names");
+            ConfigHelpers.AppendShowHeaderConfig(sb, surfaceData.showHeader);
+            ConfigHelpers.AppendShowSummaryConfig(sb, surfaceData.showSummary);
+            ConfigHelpers.AppendShowMissingConfig(sb, surfaceData.showMissing);
+            ConfigHelpers.AppendShowBarsConfig(sb, surfaceData.showBars);
+            ConfigHelpers.AppendShowSubgridsConfig(sb, surfaceData.showSubgrids);
+            ConfigHelpers.AppendSubgridUpdateFrequencyConfig(sb, surfaceData.subgridUpdateFrequency);
+            ConfigHelpers.AppendShowDockedConfig(sb, surfaceData.showDocked);
+            ConfigHelpers.AppendUseColorsConfig(sb, surfaceData.useColors);
 
-            sb.AppendLine();
+            ConfigHelpers.AppendScrollingConfig(sb, "CONTAINER", toggleScroll, reverseDirection, scrollSpeed, scrollLines, 0);
+
             sb.AppendLine("; [ CONTAINER - LAYOUT OPTIONS ]");
             sb.AppendLine($"TextSize={surfaceData.textSize}");
             sb.AppendLine($"ViewPortOffsetX={surfaceData.viewPortOffsetX}");
@@ -146,6 +150,15 @@ namespace MahrianeIndustries.LCDInfo
                     if (config.ContainsKey(CONFIG_SECTION_ID, "ShowProduction"))
                         surfaceData.showProduction = config.Get(CONFIG_SECTION_ID, "ShowProduction").ToBoolean();
 
+                    // Scrolling options (optional; defaults: off, forward, 60 ticks, 1 line, 5 max)
+                    if (config.ContainsKey(CONFIG_SECTION_ID, "ToggleScroll"))
+                        toggleScroll = config.Get(CONFIG_SECTION_ID, "ToggleScroll").ToBoolean(false);
+                    if (config.ContainsKey(CONFIG_SECTION_ID, "ReverseDirection"))
+                        reverseDirection = config.Get(CONFIG_SECTION_ID, "ReverseDirection").ToBoolean(false);
+                    if (config.ContainsKey(CONFIG_SECTION_ID, "ScrollSpeed"))
+                        scrollSpeed = Math.Max(1, config.Get(CONFIG_SECTION_ID, "ScrollSpeed").ToInt32(60));
+                    if (config.ContainsKey(CONFIG_SECTION_ID, "ScrollLines"))
+                        scrollLines = Math.Max(1, config.Get(CONFIG_SECTION_ID, "ScrollLines").ToInt32(1));
                     surfaceData.newLine = new Vector2(0, 30 * surfaceData.textSize);
 
                     if (config.ContainsKey(CONFIG_SECTION_ID, "SearchId"))
@@ -173,6 +186,7 @@ namespace MahrianeIndustries.LCDInfo
                 else
                 {
                     MyLog.Default.WriteLine($"MahrianeIndustries.LCDInfo.LCDContainerSummaryInfo: Config Syntax error at Line {result}");
+                    configError = true;
                 }
             }
             catch (Exception e)
@@ -205,9 +219,7 @@ namespace MahrianeIndustries.LCDInfo
         List<string> excludeIds = new List<string>();
         List<string> searchIds = new List<string>();
         List<BlockInventoryData> blockInventoriDataList = new List<BlockInventoryData>();
-        
-        // Cached subgrid blocks (persisted between main grid scans)
-        List<IMyCubeBlock> subgridBlocks = new List<IMyCubeBlock>();
+        List<IMyCubeBlock> subgridBlocks = new List<IMyCubeBlock>();  // Cached subgrid blocks
 
         VRage.Collections.DictionaryValuesReader<MyDefinitionId, MyDefinitionBase> myDefinitions;
         MyDefinitionId myDefinitionId;
@@ -219,6 +231,12 @@ namespace MahrianeIndustries.LCDInfo
         bool compactMode = false;
         bool hideEmpty = false;
         bool isStation = false;
+        bool toggleScroll = false;
+        bool reverseDirection = false;
+        int scrollSpeed = 60;
+        int scrollLines = 1;
+        int scrollOffset = 0;
+        int ticksSinceLastScroll = 0;
         Sandbox.ModAPI.Ingame.MyShipMass gridMass;
 
         public LCDContainerSummaryInfo(IMyTextSurface surface, IMyCubeBlock block, Vector2 size) : base(surface, block, size)
@@ -240,14 +258,34 @@ namespace MahrianeIndustries.LCDInfo
             if (Sandbox.ModAPI.MyAPIGateway.Utilities?.IsDedicated ?? false)
                 return;
 
-            // Fix for issue #11 + multi-surface regression fix (mirrors Apex Update).
-            // Cheap no-op unless a foreign [Settings*] section is present on this block.
+            // Fix for issue #11 (leftover legacy sibling app sections can trigger
+            // a hang tied to grid-state changes like merge blocks). Cheap no-op
+            // unless a foreign [Settings*] section is actually present.
             ConfigHelpers.PurgeLegacyAppSections(myTerminalBlock, CONFIG_SECTION_ID);
 
             if (myTerminalBlock.CustomData.Length <= 0 || !myTerminalBlock.CustomData.Contains(CONFIG_SECTION_ID))
                 CreateConfig();
 
             LoadConfig();
+
+            // Update scroll offset if scrolling is enabled
+            if (toggleScroll)
+            {
+                ticksSinceLastScroll += 10;  // Update10 fires every 10 ticks — must increment by 10
+                if (ticksSinceLastScroll >= scrollSpeed)
+                {
+                    ticksSinceLastScroll = 0;
+                    if (reverseDirection)
+                        scrollOffset -= scrollLines;
+                    else
+                        scrollOffset += scrollLines;
+                }
+            }
+            else
+            {
+                scrollOffset = 0;
+                ticksSinceLastScroll = 0;
+            }
 
             UpdateInventories();
 
@@ -266,83 +304,50 @@ namespace MahrianeIndustries.LCDInfo
 
         void UpdateInventories()
         {
-            // Determine if we should scan subgrids this cycle
-            bool scanSubgrids = false;
-            if (surfaceData.showSubgrids)
-            {
-                subgridScanTick++;
-                if (subgridScanTick >= surfaceData.subgridUpdateFrequency / 10)
-                {
-                    subgridScanTick = 0;
-                    scanSubgrids = true;
-                }
-            }
-
             try
             {
-                blockInventoriDataList.Clear();
-
                 var myCubeGrid = myTerminalBlock.CubeGrid as MyCubeGrid;
                 if (myCubeGrid == null) return;
-                
-                // Always get main grid blocks
-                var mainBlocks = MahUtillities.GetBlocks(myCubeGrid, searchId, excludeIds, ref gridMass, false, surfaceData.showDocked);
 
-                // Periodically update subgrid cache
-                if (scanSubgrids)
-                {
-                    var allBlocks = MahUtillities.GetBlocks(myCubeGrid, searchId, excludeIds, ref gridMass, true, surfaceData.showDocked);
-                    subgridBlocks.Clear();
-                    
-                    // Extract subgrid-only blocks
-                    foreach (var block in allBlocks)
-                        if (!mainBlocks.Contains(block))
-                            subgridBlocks.Add(block);
-                }
-                
-                // Process main grid blocks
                 IMyCubeGrid cubeGrid = myCubeGrid as IMyCubeGrid;
                 isStation = cubeGrid.IsStatic;
                 gridId = cubeGrid.CustomName;
 
-                foreach (var myBlock in mainBlocks)
+                // Determine if we should scan subgrids/docked on this tick
+                bool scanSubgrids = false;
+                if (surfaceData.showSubgrids || surfaceData.showDocked)
                 {
-                    if (myBlock == null) continue;
-                    if (!myBlock.HasInventory) continue;
-                    if (myBlock is IMyTerminalBlock)
+                    subgridScanTick++;
+                    if (subgridScanTick >= surfaceData.subgridUpdateFrequency / 10)  // Divide by 10 for Update10 timing
                     {
-                        IMyTerminalBlock block = myBlock as IMyTerminalBlock;
-
-                        if (block == null) continue;
-
-                        bool isContainer = block is IMyCargoContainer;
-                        bool isProduction = block is IMyProductionBlock; // assembler, refinery, etc.
-
-                        // If neither toggle is enabled, show nothing (hard filter) to avoid noise.
-                        bool anyToggle = surfaceData.showContainers || surfaceData.showProduction;
-                        if (!anyToggle) continue;
-
-                        // Apply category filtering
-                        if (isContainer && !surfaceData.showContainers) continue;
-                        if (isProduction && !surfaceData.showProduction) continue;
-                        // If block isn't container or production, skip (since this screen should only care about those now)
-                        if (!isContainer && !isProduction) continue;
-
-                        BlockInventoryData blockInventoryData = new BlockInventoryData();
-                        blockInventoryData.block = block;
-                        blockInventoryData.inventories = new IMyInventory[block.InventoryCount];
-
-                        for (int i = 0; i < block.InventoryCount; i++)
-                        {
-                            blockInventoryData.inventories [i] = block.GetInventory(i);
-                        }
-
-                        blockInventoriDataList.Add(blockInventoryData);
+                        subgridScanTick = 0;
+                        scanSubgrids = true;
                     }
                 }
-                
-                // Process cached subgrid blocks
-                foreach (var myBlock in subgridBlocks)
+
+                // Always scan main grid blocks (instant updates)
+                var mainBlocks = MahUtillities.GetBlocks(myCubeGrid, searchId, excludeIds, ref gridMass, false, false);
+
+                // Periodically update subgrid/docked block cache
+                if (scanSubgrids)
+                {
+                    var allBlocks = MahUtillities.GetBlocks(myCubeGrid, searchId, excludeIds, ref gridMass, surfaceData.showSubgrids, surfaceData.showDocked);
+                    subgridBlocks.Clear();
+                    foreach (var block in allBlocks)
+                    {
+                        if (!mainBlocks.Contains(block))
+                            subgridBlocks.Add(block);
+                    }
+                }
+
+                // Merge main (fresh) and subgrid (cached) blocks
+                var myFatBlocks = new List<IMyCubeBlock>();
+                myFatBlocks.AddRange(mainBlocks);
+                myFatBlocks.AddRange(subgridBlocks);
+
+                blockInventoriDataList.Clear();
+
+                foreach (var myBlock in myFatBlocks)
                 {
                     if (myBlock == null) continue;
                     if (!myBlock.HasInventory) continue;
@@ -371,7 +376,7 @@ namespace MahrianeIndustries.LCDInfo
 
                         for (int i = 0; i < block.InventoryCount; i++)
                         {
-                            blockInventoryData.inventories [i] = block.GetInventory(i);
+                            blockInventoryData.inventories[i] = block.GetInventory(i);
                         }
 
                         blockInventoriDataList.Add(blockInventoryData);
@@ -418,12 +423,17 @@ namespace MahrianeIndustries.LCDInfo
                 }
 
                 // Sort blocks alphabetically by custom name
-                blockInventoriDataList.Sort((a, b) => 
+                blockInventoriDataList.Sort((a, b) =>
                 {
                     if (a.block == null) return b.block == null ? 0 : 1;
                     if (b.block == null) return -1;
                     return string.Compare(a.block.CustomName, b.block.CustomName, StringComparison.OrdinalIgnoreCase);
                 });
+
+                // Build flat list of display rows for scrolling
+                // rowBlocks[i] + rowIndices[i]: inventoryIndex -1 = header line for multi-inventory block
+                var rowBlocks = new List<BlockInventoryData>();
+                var rowIndices = new List<int>();
 
                 foreach (BlockInventoryData blockInventoryData in blockInventoriDataList)
                 {
@@ -431,49 +441,87 @@ namespace MahrianeIndustries.LCDInfo
                     if (blockInventoryData.inventories.Length <= 0) continue;
                     if (hideEmpty && blockInventoryData.CurrentVolume <= 0) continue;
 
-                    // If there is only 1 inventory
                     if (blockInventoryData.inventories.Length == 1)
                     {
-                        double current = (double)blockInventoryData.inventories[0].CurrentVolume;
-                        double total = (double)blockInventoryData.inventories[0].MaxVolume;
+                        rowBlocks.Add(blockInventoryData);
+                        rowIndices.Add(0);
+                    }
+                    else
+                    {
+                        rowBlocks.Add(blockInventoryData);
+                        rowIndices.Add(-1); // header line
+                        for (int i = 0; i < blockInventoryData.inventories.Length; i++)
+                        {
+                            rowBlocks.Add(blockInventoryData);
+                            rowIndices.Add(i);
+                        }
+                    }
+                }
 
-                        string blockId = blockInventoryData.block.CustomName;
-                        
+                // Calculate available lines based on remaining screen height
+                Vector2 dataStartPosition = position;
+                float lineHeight = 30f * surfaceData.textSize;
+                float remainingHeight = mySurface.SurfaceSize.Y - dataStartPosition.Y;
+                int availableDataLines = Math.Max(1, (int)((remainingHeight - (lineHeight * 0.5f)) / lineHeight));
+
+                int totalDataLines = rowBlocks.Count;
+                int startIndex = 0;
+
+                if (toggleScroll && totalDataLines > availableDataLines)
+                {
+                    int normalizedOffset = ((scrollOffset % totalDataLines) + totalDataLines) % totalDataLines;
+                    startIndex = normalizedOffset;
+                }
+
+                // Draw rows with scrolling/wrapping
+                int linesDrawn = 0;
+                for (int i = 0; i < totalDataLines && linesDrawn < availableDataLines; i++)
+                {
+                    int rowIndex = (startIndex + i) % totalDataLines;
+                    BlockInventoryData row = rowBlocks[rowIndex];
+                    int invIndex = rowIndices[rowIndex];
+
+                    if (invIndex == -1)
+                    {
+                        // Header line for multi-inventory block
+                        SurfaceDrawer.WriteTextSprite(ref frame, position, surfaceData, $"{row.block.CustomName} [{row.inventories.Length}]", TextAlignment.LEFT, surfaceData.surface.ScriptForegroundColor);
+                        position += surfaceData.newLine;
+                    }
+                    else if (row.inventories.Length == 1)
+                    {
+                        double current = (double)row.inventories[invIndex].CurrentVolume;
+                        double total = (double)row.inventories[invIndex].MaxVolume;
+
                         if (surfaceData.showBars)
                         {
-                            SurfaceDrawer.DrawBar(ref frame, ref position, surfaceData, $"{blockId}", current, total, Unit.Percent, false, !surfaceData.useColors);
+                            SurfaceDrawer.DrawBar(ref frame, ref position, surfaceData, $"{row.block.CustomName}", current, total, Unit.Percent, false, !surfaceData.useColors);
                         }
                         else
                         {
-                            SurfaceDrawer.WriteTextSprite(ref frame, position, surfaceData, $"{blockId}", TextAlignment.LEFT, surfaceData.surface.ScriptForegroundColor);
+                            SurfaceDrawer.WriteTextSprite(ref frame, position, surfaceData, $"{row.block.CustomName}", TextAlignment.LEFT, surfaceData.surface.ScriptForegroundColor);
                             SurfaceDrawer.WriteTextSprite(ref frame, position, surfaceData, $"{(current / total * 100).ToString("0.0")}%", TextAlignment.RIGHT, surfaceData.surface.ScriptForegroundColor);
                             position += surfaceData.newLine;
                         }
                     }
-                    // If this is a production block with multiple inventories
                     else
                     {
-                        SurfaceDrawer.WriteTextSprite(ref frame, position, surfaceData, $"{blockInventoryData.block.CustomName} [{blockInventoryData.inventories.Length.ToString("0")}]", TextAlignment.LEFT, surfaceData.surface.ScriptForegroundColor);
-                        position += surfaceData.newLine;
+                        // Sub-inventory line (Input/Output)
+                        double current = (double)row.inventories[invIndex].CurrentVolume;
+                        double total = (double)row.inventories[invIndex].MaxVolume;
 
-                        for (int i = 0; i < blockInventoryData.inventories.Length; i++)
+                        if (surfaceData.showBars)
                         {
-                            double current = (double)blockInventoryData.inventories[i].CurrentVolume;
-                            double total = (double)blockInventoryData.inventories[i].MaxVolume;
-
-                            if (surfaceData.showBars)
-                            {
-                                string inventoryId = i == 0 ? "Input" : "Output";
-
-                                SurfaceDrawer.DrawBar(ref frame, ref position, surfaceData, $"- {inventoryId}:", current, total, Unit.Percent, false, !surfaceData.useColors);
-                            }
-                            else
-                            {
-                                SurfaceDrawer.WriteTextSprite(ref frame, position, surfaceData, $"{(current / total * 100).ToString("0.0")}%", TextAlignment.RIGHT, surfaceData.surface.ScriptForegroundColor);
-                                position += surfaceData.newLine;
-                            }
+                            string inventoryId = invIndex == 0 ? "Input" : "Output";
+                            SurfaceDrawer.DrawBar(ref frame, ref position, surfaceData, $"- {inventoryId}:", current, total, Unit.Percent, false, !surfaceData.useColors);
+                        }
+                        else
+                        {
+                            SurfaceDrawer.WriteTextSprite(ref frame, position, surfaceData, $"{(current / total * 100).ToString("0.0")}%", TextAlignment.RIGHT, surfaceData.surface.ScriptForegroundColor);
+                            position += surfaceData.newLine;
                         }
                     }
+
+                    linesDrawn++;
                 }
 
                 position += surfaceData.newLine;

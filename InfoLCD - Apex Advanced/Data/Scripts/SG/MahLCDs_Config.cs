@@ -89,9 +89,14 @@ namespace MahrianeIndustries.LCDInfo
             new CargoItemDefinition { typeId = "Ore",           subtypeId = "Stone",                                displayName = "Stone",                  volume = 0.37f,     sortId = "ore", minAmount = 10000   },
             new CargoItemDefinition { typeId = "Ore",           subtypeId = "Uranium",                              displayName = "Uranium",                volume = 0.37f,     sortId = "ore", minAmount = 10000   },
 
-            //Modded Ore Items (alphabetical by displayName)
+            //Modded Ore Items (alphabetical by displayName) - Apex Survival Pack (3570977190)
             new CargoItemDefinition { typeId = "Ore",           subtypeId = "HydroPellets",                         displayName = "Nutrient Pellets",       volume = 0.37f,     sortId = "ore", minAmount = 5000    },
             new CargoItemDefinition { typeId = "Ore",           subtypeId = "Organic",                              displayName = "Organic",                volume = 0.37f,     sortId = "ore", minAmount = 5000    },
+/*
+            //Modded Ore Items (alphabetical by displayName)
+            new CargoItemDefinition { typeId = "Ore",           subtypeId = "HydroPallets",                         displayName = "Hydro Pallets",          volume = 0.37f,     sortId = "ore", minAmount = 100     },
+            new CargoItemDefinition { typeId = "Ore",           subtypeId = "Organic",                              displayName = "Organic",                volume = 0.37f,     sortId = "ore", minAmount = 100     },
+*/
             //Ingot items (alphabetical by displayName)
             new CargoItemDefinition { typeId = "Ingot",        subtypeId = "Cobalt",                                displayName = "Cobalt",                 volume = 0.112f,    sortId = "ingot", minAmount =  25000  },
             new CargoItemDefinition { typeId = "Ingot",        subtypeId = "Gold",                                  displayName = "Gold",                   volume = 0.052f,    sortId = "ingot", minAmount =   5000  },
@@ -143,10 +148,10 @@ namespace MahrianeIndustries.LCDInfo
             new CargoItemDefinition { typeId = "Component",    subtypeId = "PrototechPanel",                        displayName = "Prototech Panel",        volume = 6.0f,      sortId = "protoComponent", minAmount = 20       },
             new CargoItemDefinition { typeId = "Component",    subtypeId = "PrototechPropulsionUnit",               displayName = "Prototech Propulsion",   volume = 160.0f,    sortId = "protoComponent", minAmount = 20       },
             new CargoItemDefinition { typeId = "Component",    subtypeId = "AQD_Comp_Concrete",                     displayName = "Concrete",              volume = 0.37f,     sortId = "component", minAmount = 10000   },
-           
-            //Modded Component Items (alphabetical by displayName)
-            new CargoItemDefinition { typeId = "Component",    subtypeId = "EmptyTinCan",                           displayName = "Empty Tin Can",         volume = 0.5f,      sortId = "component", minAmount =   0     },
-           
+           /*
+                       //Modded Component Items (alphabetical by displayName)
+                       new CargoItemDefinition { typeId = "Component",    subtypeId = "EmptyTinCan",                           displayName = "Empty Tin Can",         volume = 0.5f,      sortId = "component", minAmount =   0     },
+           */
            //Ammo items (alphabetical by displayName)
            new CargoItemDefinition { typeId = "AmmoMagazine", subtypeId = "LargeCalibreAmmo",                      displayName = "Artillery Shell",        volume = 100.0f,    sortId = "ammo", minAmount = 250     },
             new CargoItemDefinition { typeId = "AmmoMagazine", subtypeId = "MediumCalibreAmmo",                     displayName = "Assault Cannon Shell",   volume = 30.0f,     sortId = "ammo", minAmount = 500    },
@@ -171,7 +176,7 @@ namespace MahrianeIndustries.LCDInfo
                        new CargoItemDefinition { typeId = "AmmoMagazine", subtypeId = "ElindisTorpedo",                        displayName = "Torpedo",                volume = 120.0f,    sortId = "ammo", minAmount =  50     },
            */
            //Hand weapon ammo items (alphabetical by displayName)
-            new CargoItemDefinition { typeId = "AmmoMagazine", subtypeId = "NATO_5p56x45mm",                        displayName = "5.56x45mm Mag",          volume = 0.2f,      sortId = "handAmmo", minAmount = 100     },
+           new CargoItemDefinition { typeId = "AmmoMagazine", subtypeId = "NATO_5p56x45mm",                        displayName = "5.56x45mm Mag",          volume = 0.2f,      sortId = "handAmmo", minAmount = 100     },
             new CargoItemDefinition { typeId = "AmmoMagazine", subtypeId = "AutomaticRifleGun_Mag_20rd",            displayName = "MR-20 Rifle Mag",        volume = 0.2f,      sortId = "handAmmo", minAmount = 100    },
             new CargoItemDefinition { typeId = "AmmoMagazine", subtypeId = "UltimateAutomaticRifleGun_Mag_30rd",    displayName = "MR-30E Rifle Mag",       volume = 0.3f,      sortId = "handAmmo", minAmount = 100    },
             new CargoItemDefinition { typeId = "AmmoMagazine", subtypeId = "RapidFireAutomaticRifleGun_Mag_50rd",   displayName = "MR-50A Rifle Mag",       volume = 0.5f,      sortId = "handAmmo", minAmount = 100    },
@@ -235,7 +240,10 @@ namespace MahrianeIndustries.LCDInfo
             new CargoItemDefinition { typeId = "ConsumableItem",    subtypeId = "InsectMeatRaw",                    displayName = "Raw Insect Meat",        volume = 2.0f,       sortId = "rawFood", minAmount =  10     },
             new CargoItemDefinition { typeId = "ConsumableItem",    subtypeId = "MammalMeatRaw",                    displayName = "Raw Mammal Meat",        volume = 1.15f,      sortId = "rawFood", minAmount =  10     },
             new CargoItemDefinition { typeId = "ConsumableItem",    subtypeId = "Vegetables",                       displayName = "Vegetables",             volume = 2.5f,      sortId = "rawFood", minAmount =  50     },
-
+/*
+            //Modded Raw food items
+            new CargoItemDefinition { typeId = "ConsumableItem",    subtypeId = "Coffee",                           displayName = "Engineered Coffee",      volume = 3.0f,      sortId = "rawFood", minAmount =  20     },
+*/
             // Cooked Food Items (alphabetical by displayName)
             new CargoItemDefinition { typeId = "ConsumableItem",    subtypeId = "MealPack_BananaBeef",              displayName = "Banana Beef",            volume = 1.25f,     sortId = "cookedFood", minAmount =   20    },
             new CargoItemDefinition { typeId = "ConsumableItem",    subtypeId = "MealPack_Burrito",                 displayName = "Burrito",                volume = 1.25f,     sortId = "cookedFood", minAmount =  20     },
@@ -267,24 +275,35 @@ namespace MahrianeIndustries.LCDInfo
             new CargoItemDefinition { typeId = "ConsumableItem",    subtypeId = "MealPack_SynthLoaf",               displayName = "Synth Loaf",            volume = 1.25f,     sortId = "cookedFood", minAmount =  20     },
             new CargoItemDefinition { typeId = "ConsumableItem",    subtypeId = "MealPack_Unknown",                 displayName = "Unknown MealPack",      volume = 1.25f,     sortId = "cookedFood", minAmount =  0      },
             new CargoItemDefinition { typeId = "ConsumableItem",    subtypeId = "MealPack_VeggieBurger",            displayName = "Veggie Burger",          volume = 1.25f,     sortId = "cookedFood", minAmount =  20     },
-
+/*
             //Modded Cooked Food Items (alphabetical by displayName)
             new CargoItemDefinition { typeId = "ConsumableItem",    subtypeId = "BioPaste",                         displayName = "Bio-Nutri-Paste",             volume = 0.5f,       sortId = "cookedFood", minAmount =  50     },
-            new CargoItemDefinition { typeId = "ConsumableItem",    subtypeId = "LaysChips",                        displayName = "Lies Chips",            volume = 1.0f,       sortId = "cookedFood", minAmount =  20     },
-            new CargoItemDefinition { typeId = "ConsumableItem",    subtypeId = "PrlnglesChips",                    displayName = "Singles Chips",        volume = 1.0f,       sortId = "cookedFood", minAmount =  20     },
+            new CargoItemDefinition { typeId = "ConsumableItem",    subtypeId = "MealPack_CoffeeBrisket",           displayName = "Coffee Brisket",         volume = 1.25f,     sortId = "cookedFood", minAmount =  20     },
+            new CargoItemDefinition { typeId = "ConsumableItem",    subtypeId = "MealPack_CoffeeCake",              displayName = "Coffee Cake",            volume = 1.25f,     sortId = "cookedFood", minAmount =  20     },
+            new CargoItemDefinition { typeId = "ConsumableItem",    subtypeId = "LaysChips",                        displayName = "Lays Chips",            volume = 1.0f,       sortId = "cookedFood", minAmount =  20     },
+            new CargoItemDefinition { typeId = "PhysicalObject",    subtypeId = "Fake_Meat",                        displayName = "Meat Analogue",          volume = 1.25f,     sortId = "cookedFood", minAmount =  20     },
+            new CargoItemDefinition { typeId = "ConsumableItem",    subtypeId = "PrlnglesChips",                    displayName = "Prlngles Chips",        volume = 1.0f,       sortId = "cookedFood", minAmount =  20     },
+            new CargoItemDefinition { typeId = "ConsumableItem",    subtypeId = "MealPack_RoastedCoffee",           displayName = "Roasted Coffee Pack",    volume = 1.25f,     sortId = "cookedFood", minAmount =  20     },
+*/
             //Drink Items (alphabetical by displayName)
             new CargoItemDefinition { typeId = "ConsumableItem",    subtypeId = "ClangCola",                        displayName = "Clang Cola",             volume = 1.0f,      sortId = "drink", minAmount =   0     },
             new CargoItemDefinition { typeId = "ConsumableItem",    subtypeId = "CosmicCoffee",                     displayName = "Cosmic Coffee",          volume = 1.0f,      sortId = "drink", minAmount =   0     },
-
+/*
             //Modded Drink Items (alphabetical by displayName)
             new CargoItemDefinition { typeId = "ConsumableItem",    subtypeId = "FruitTea",                         displayName = "Fruit Tea",             volume = 0.5f,       sortId = "drink", minAmount =  20     },
-            new CargoItemDefinition { typeId = "ConsumableItem",    subtypeId = "MycoBoost",                        displayName = "Myco-Boost",            volume = 0.5f,       sortId = "drink", minAmount =  20     },
+            new CargoItemDefinition { typeId = "ConsumableItem",    subtypeId = "InterBeer",                        displayName = "Inter Beer",            volume = 0.5f,       sortId = "drink", minAmount =  20     },
+            new CargoItemDefinition { typeId = "ConsumableItem",    subtypeId = "MycoBoost",                        displayName = "Myco Boost",            volume = 0.5f,       sortId = "drink", minAmount =  20     },
             new CargoItemDefinition { typeId = "ConsumableItem",    subtypeId = "SparklingWater",                   displayName = "Sparkling Water",       volume = 0.5f,       sortId = "drink", minAmount =  20     },
+*/
             //Seed items (alphabetical by displayName)
             new CargoItemDefinition { typeId = "SeedItem",          subtypeId = "Fruit",                            displayName = "Fruit Seeds",            volume = 0.1f,      sortId = "seed", minAmount =  50     },
             new CargoItemDefinition { typeId = "SeedItem",          subtypeId = "Grain",                            displayName = "Grain Seeds",            volume = 0.1f,      sortId = "seed", minAmount =  50     },
             new CargoItemDefinition { typeId = "SeedItem",          subtypeId = "Vegetables",                       displayName = "Vegetable Seeds",        volume = 0.1f,      sortId = "seed", minAmount =  50     },
             new CargoItemDefinition { typeId = "SeedItem",          subtypeId = "Mushrooms",                        displayName = "Mushroom Spores",        volume = 0.1f,      sortId = "seed", minAmount =  50     },
+/*
+            //Modded seed items
+            new CargoItemDefinition { typeId = "SeedItem",          subtypeId = "CoffeeBean",                       displayName = "Coffee Beans",           volume = 0.1f,      sortId = "seed", minAmount =  50     },
+*/
 
             
         };
@@ -317,16 +336,24 @@ namespace MahrianeIndustries.LCDInfo
             try
             {
                 bool loaded = false;
-                // Try both root and Data/ locations (one may exist depending on packaging)
-                if (TryLoadExternalItems(ExternalItemsFileName))
+                string loadSource = null;
+                // 1. World storage takes priority — survives mod updates, safe for server admins to customize
+                if (TryLoadExternalItemsFromWorldStorage(ExternalItemsFileName))
+                {
                     loaded = true;
-                else if (TryLoadExternalItems("Data/" + ExternalItemsFileName))
+                    loadSource = "world storage";
+                }
+                // 2. Fall back to mod location (shipped defaults/examples)
+                else if (TryLoadExternalItems(ExternalItemsFileName) || TryLoadExternalItems("Data/" + ExternalItemsFileName))
+                {
                     loaded = true;
+                    loadSource = "mod location";
+                }
 
                 if (loaded)
                 {
                     externalItemsLoaded = true; // success
-                    MyLog.Default.WriteLine("MahDefinitions: ExternalItems loaded successfully.");
+                    MyLog.Default.WriteLine($"MahDefinitions: ExternalItems loaded successfully from {loadSource}.");
                 }
                 else if (externalItemsLoadAttempts >= ExternalItemsMaxAttempts)
                 {
@@ -361,111 +388,7 @@ namespace MahrianeIndustries.LCDInfo
                 using (var reader = MyAPIGateway.Utilities.ReadFileInModLocation(relativePath, selfModItem.Value))
                 {
                     if (reader == null) return false;
-
-                    string line;
-                    int lineNo = 0;
-                    string currentSection = null;
-                    string typeId = null, subtypeId = null, displayName = null, sortId = null;
-                    float volume = 0.1f;
-                    int minAmount = 0;
-                    
-                    while ((line = reader.ReadLine()) != null)
-                    {
-                        lineNo++;
-                        line = line.Trim();
-                        if (string.IsNullOrWhiteSpace(line)) continue;              // skip blank
-                        if (line.StartsWith("#")) continue;                        // skip comments
-                        if (line.StartsWith("//")) continue;                      // alternate comment
-
-                        // Check for INI-style section header [ItemName]
-                        if (line.StartsWith("[") && line.EndsWith("]"))
-                        {
-                            // Save previous item if we have one
-                            if (currentSection != null && !string.IsNullOrWhiteSpace(typeId) && !string.IsNullOrWhiteSpace(subtypeId))
-                            {
-                                AddOrUpdateCargoItem(typeId, subtypeId, displayName ?? subtypeId, volume, sortId, minAmount);
-                            }
-                            
-                            // Start new section
-                            currentSection = line.Substring(1, line.Length - 2).Trim();
-                            typeId = null;
-                            subtypeId = null;
-                            displayName = null;
-                            sortId = null;
-                            volume = 0.1f;
-                            minAmount = 0;
-                            continue;
-                        }
-
-                        // Check for key=value format (INI style)
-                        if (line.Contains("="))
-                        {
-                            var parts = line.Split(new char[] { '=' }, 2);
-                            if (parts.Length == 2)
-                            {
-                                string key = parts[0].Trim().ToLowerInvariant();
-                                string value = parts[1].Trim();
-                                
-                                switch (key)
-                                {
-                                    case "typeid":
-                                        typeId = value;
-                                        break;
-                                    case "subtypeid":
-                                        subtypeId = value;
-                                        break;
-                                    case "displayname":
-                                        displayName = value;
-                                        break;
-                                    case "volume":
-                                        float.TryParse(value, out volume);
-                                        break;
-                                    case "sortid":
-                                        sortId = value.ToLower();
-                                        break;
-                                    case "minamount":
-                                        int.TryParse(value, out minAmount);
-                                        break;
-                                }
-                                continue;
-                            }
-                        }
-
-                        // Fall back to CSV / semicolon format: typeId;subtypeId;displayName;volume;sortId;minAmount
-                        var csvParts = line.Split(new char[] { ';', ',' });
-                        if (csvParts.Length < 2)
-                        {
-                            MyLog.Default.WriteLine($"MahDefinitions: Skipping line {lineNo} (invalid format): {line}");
-                            continue;
-                        }
-
-                        typeId = csvParts[0].Trim();
-                        subtypeId = csvParts[1].Trim();
-                        if (string.IsNullOrWhiteSpace(typeId) || string.IsNullOrWhiteSpace(subtypeId))
-                            continue;
-
-                        displayName = csvParts.Length > 2 && !string.IsNullOrWhiteSpace(csvParts[2]) ? csvParts[2].Trim() : subtypeId;
-                        volume = 0.1f;
-                        if (csvParts.Length > 3)
-                            float.TryParse(csvParts[3].Trim(), out volume);
-                        sortId = csvParts.Length > 4 && !string.IsNullOrWhiteSpace(csvParts[4]) ? csvParts[4].Trim().ToLower() : "misc";
-                        minAmount = 0;
-                        if (csvParts.Length > 5)
-                            int.TryParse(csvParts[5].Trim(), out minAmount);
-
-                        // Add CSV item immediately
-                        AddOrUpdateCargoItem(typeId, subtypeId, displayName, volume, sortId, minAmount);
-                        
-                        // Reset for next CSV line
-                        typeId = null;
-                        subtypeId = null;
-                    }
-                    
-                    // Save final INI-style item if we have one
-                    if (currentSection != null && !string.IsNullOrWhiteSpace(typeId) && !string.IsNullOrWhiteSpace(subtypeId))
-                    {
-                        AddOrUpdateCargoItem(typeId, subtypeId, displayName ?? subtypeId, volume, sortId, minAmount);
-                    }
+                    ParseExternalItemsReader(reader);
                 }
 
                 return true;
@@ -475,6 +398,103 @@ namespace MahrianeIndustries.LCDInfo
                 MyLog.Default.WriteLine($"MahDefinitions.TryLoadExternalItems('{relativePath}') Exception: {e}");
                 return false;
             }
+        }
+
+        static bool TryLoadExternalItemsFromWorldStorage(string fileName)
+        {
+            try
+            {
+                if (MyAPIGateway.Utilities == null) return false;
+                if (!MyAPIGateway.Utilities.FileExistsInWorldStorage(fileName, typeof(MahDefinitions)))
+                    return false;
+                using (var reader = MyAPIGateway.Utilities.ReadFileInWorldStorage(fileName, typeof(MahDefinitions)))
+                {
+                    if (reader == null) return false;
+                    ParseExternalItemsReader(reader);
+                }
+                return true;
+            }
+            catch (Exception e)
+            {
+                MyLog.Default.WriteLine($"MahDefinitions.TryLoadExternalItemsFromWorldStorage('{fileName}') Exception: {e}");
+                return false;
+            }
+        }
+
+        static void ParseExternalItemsReader(System.IO.TextReader reader)
+        {
+            string line;
+            int lineNo = 0;
+            string currentSection = null;
+            string typeId = null, subtypeId = null, displayName = null, sortId = null;
+            float volume = 0.1f;
+            int minAmount = 0;
+
+            while ((line = reader.ReadLine()) != null)
+            {
+                lineNo++;
+                line = line.Trim();
+                if (string.IsNullOrWhiteSpace(line)) continue;
+                if (line.StartsWith("#")) continue;
+                if (line.StartsWith("//")) continue;
+
+                if (line.StartsWith("[") && line.EndsWith("]"))
+                {
+                    if (currentSection != null && !string.IsNullOrWhiteSpace(typeId) && !string.IsNullOrWhiteSpace(subtypeId))
+                        AddOrUpdateCargoItem(typeId, subtypeId, displayName ?? subtypeId, volume, sortId, minAmount);
+
+                    currentSection = line.Substring(1, line.Length - 2).Trim();
+                    typeId = null; subtypeId = null; displayName = null; sortId = null;
+                    volume = 0.1f; minAmount = 0;
+                    continue;
+                }
+
+                if (line.Contains("="))
+                {
+                    var parts = line.Split(new char[] { '=' }, 2);
+                    if (parts.Length == 2)
+                    {
+                        string key = parts[0].Trim().ToLowerInvariant();
+                        string value = parts[1].Trim();
+                        switch (key)
+                        {
+                            case "typeid":      typeId = value; break;
+                            case "subtypeid":   subtypeId = value; break;
+                            case "displayname": displayName = value; break;
+                            case "volume":      float.TryParse(value, out volume); break;
+                            case "sortid":      sortId = value.ToLower(); break;
+                            case "minamount":   int.TryParse(value, out minAmount); break;
+                        }
+                        continue;
+                    }
+                }
+
+                // CSV / semicolon fallback: typeId;subtypeId;displayName;volume;sortId;minAmount
+                var csvParts = line.Split(new char[] { ';', ',' });
+                if (csvParts.Length < 2)
+                {
+                    MyLog.Default.WriteLine($"MahDefinitions: Skipping line {lineNo} (invalid format): {line}");
+                    continue;
+                }
+
+                typeId = csvParts[0].Trim();
+                subtypeId = csvParts[1].Trim();
+                if (string.IsNullOrWhiteSpace(typeId) || string.IsNullOrWhiteSpace(subtypeId))
+                    continue;
+
+                displayName = csvParts.Length > 2 && !string.IsNullOrWhiteSpace(csvParts[2]) ? csvParts[2].Trim() : subtypeId;
+                volume = 0.1f;
+                if (csvParts.Length > 3) float.TryParse(csvParts[3].Trim(), out volume);
+                sortId = csvParts.Length > 4 && !string.IsNullOrWhiteSpace(csvParts[4]) ? csvParts[4].Trim().ToLower() : "misc";
+                minAmount = 0;
+                if (csvParts.Length > 5) int.TryParse(csvParts[5].Trim(), out minAmount);
+
+                AddOrUpdateCargoItem(typeId, subtypeId, displayName, volume, sortId, minAmount);
+                typeId = null; subtypeId = null;
+            }
+
+            if (currentSection != null && !string.IsNullOrWhiteSpace(typeId) && !string.IsNullOrWhiteSpace(subtypeId))
+                AddOrUpdateCargoItem(typeId, subtypeId, displayName ?? subtypeId, volume, sortId, minAmount);
         }
 
         static void AddOrUpdateCargoItem(string typeId, string subtypeId, string displayName, float volume, string sortId, int minAmount)
@@ -556,10 +576,25 @@ namespace MahrianeIndustries.LCDInfo
 
         public static string LiterFormat(double num)
         {
-            if (num >= 100000)
+            // FEAT (Kevin Starwaster 2026-05-30): scale to ML/GL for very large volumes
+            // (megabases push hydrogen tanks into the hundreds of millions of liters and
+            // the kL display overflows small/corner LCDs). Each tier drops one decimal as
+            // the magnitude grows so the rendered string stays roughly constant-width.
+            if (num >= 100000000000) // 100 GL+
+                return (num / 1000000000).ToString("0 GL");
+            if (num >= 10000000000)  // 10 GL+
+                return (num / 1000000000).ToString("0.0 GL");
+            if (num >= 1000000000)   // 1 GL+
+                return (num / 1000000000).ToString("0.00 GL");
+            if (num >= 100000000)    // 100 ML+
+                return (num / 1000000).ToString("0 ML");
+            if (num >= 10000000)     // 10 ML+
+                return (num / 1000000).ToString("0.0 ML");
+            if (num >= 1000000)      // 1 ML+
+                return (num / 1000000).ToString("0.00 ML");
+            if (num >= 100000)       // 100 kL+
                 return (num / 1000).ToString("0.0 kL");
-
-            if (num >= 10000)
+            if (num >= 10000)        // 10 kL+
                 return (num / 1000).ToString("0.00 kL");
 
             return num.ToString("0.00 L");
@@ -700,13 +735,16 @@ namespace MahrianeIndustries.LCDInfo
                         reactors.Add((IMyReactor)block);
                 }
 
-                // Calculate time left depending on stored Power in batteries
-                if (batteries.Count > 0)
+                // Calculate time left depending on stored Power in batteries.
+                // Filter to working batteries — disabled batteries' stored power isn't
+                // available to drain, so including them would overestimate runtime.
+                var activeBatteries = batteries.Where(b => b.IsWorking).ToList();
+                if (activeBatteries.Count > 0)
                 {
-                    var currentBatteryInput = batteries.Sum(block => block.CurrentInput);
-                    var currentBatteryOutput = batteries.Sum(block => block.CurrentOutput);
-                    var currentStoredPower = batteries.Sum(block => block.CurrentStoredPower);
-                    var maximumStoredPower = batteries.Sum(block => block.MaxStoredPower);
+                    var currentBatteryInput = activeBatteries.Sum(block => block.CurrentInput);
+                    var currentBatteryOutput = activeBatteries.Sum(block => block.CurrentOutput);
+                    var currentStoredPower = activeBatteries.Sum(block => block.CurrentStoredPower);
+                    var maximumStoredPower = activeBatteries.Sum(block => block.MaxStoredPower);
                     // Only take battery input into account, when actually loading, not when hopping forward and back <2% close to maxStorage to minimize output stutter.
                     var absoluteBatteryOutput = currentBatteryOutput - (currentStoredPower / maximumStoredPower > 0.98 ? 0 : currentBatteryInput);
 
@@ -930,7 +968,6 @@ namespace MahrianeIndustries.LCDInfo
             return new GridIceData { currentIceVolumeL = currentVol, maxIceVolumeL = maxVol, iceItemCount = itemCount };
         }
 
-        // Overload that accepts List<MyCubeBlock> and creates temporary list internally
         public static GridOrganicData GetGridOrganicData(List<MyCubeBlock> blocks, float organicItemVolumeL)
         {
             List<VRage.Game.ModAPI.Ingame.MyInventoryItem> items = new List<VRage.Game.ModAPI.Ingame.MyInventoryItem>();
@@ -1140,7 +1177,7 @@ namespace MahrianeIndustries.LCDInfo
             }
 
             return new GridHydroPelletsData { currentHydroPelletsVolumeL = currentVol, maxHydroPelletsVolumeL = maxVol, hydroPelletsItemCount = itemCount };
-        }
+        }
 
         // Config helper methods to reduce boilerplate config reading code
         public static bool TryGetConfigBool(MyIni config, string section, string key, ref bool value, ref bool errorFlag)
@@ -1296,13 +1333,13 @@ namespace MahrianeIndustries.LCDInfo
 
             if (cubeGrid == null) return allBlocks;
 
-            // Cycle guard (issue #1; mirrors apex-update#13). A mechanical connection whose top
-            // part ends up on the same grid as its base - e.g. a subgrid merged back onto the main
-            // grid - makes the includeSubGrids branch below recurse into this same grid forever.
-            // That overflows the stack, and StackOverflowException CANNOT be caught, so the
-            // try/catch below is powerless and the game dies with no log line. This visited set is
-            // shared across the whole traversal, unlike the old per-call scanned-grid list which was
-            // rebuilt on every recursive call and so could never guard anything.
+            // Cycle guard (issue #13). A mechanical connection whose top part ends up on the same
+            // grid as its base - e.g. a subgrid merged back onto the main grid - makes the
+            // includeSubGrids branch below recurse into this same grid forever. That overflows the
+            // stack, and StackOverflowException CANNOT be caught, so the try/catch below is
+            // powerless and the game dies with no log line. This visited set is shared across the
+            // whole traversal, unlike the old per-call scanned-grid list which was rebuilt on every
+            // recursive call and so could never guard anything.
             if (visitedGrids == null) visitedGrids = new HashSet<MyCubeGrid>();
             if (!visitedGrids.Add(cubeGrid)) return allBlocks;
 
@@ -1700,7 +1737,7 @@ namespace MahrianeIndustries.LCDInfo
         public float currentHydroPelletsVolumeL;
         public float maxHydroPelletsVolumeL;
         public int hydroPelletsItemCount;
-    }
+    }
 
     public struct BlockStateData
     {
@@ -1764,20 +1801,217 @@ namespace MahrianeIndustries.LCDInfo
         public double MaxVolume => inventories.Sum(x => (double)x.MaxVolume);
     }
 
+    /// <summary>
+    /// Centralized configuration helpers to generate consistent, documented config options across all LCD screens
+    /// </summary>
     public static class ConfigHelpers
     {
-        // Known InfoLCD (Apex Advanced) config section IDs — one per app.
-        // NOTE: this variant ships an extra "Extension" app that Apex Update doesn't have,
+        public static void AppendSearchIdConfig(StringBuilder sb, string value)
+        {
+            sb.AppendLine($"SearchId={value}");
+            sb.AppendLine("; Block name filter: Use '*' for all, or text to match block names (case-insensitive substring match)");
+            sb.AppendLine("; Examples: 'Cargo' matches 'Main Cargo', 'Engineering,Medical' matches blocks containing either word");
+            sb.AppendLine();
+        }
+
+        public static void AppendExcludeIdsConfig(StringBuilder sb, List<string> excludeIds, string defaultValue = "")
+        {
+            sb.AppendLine($"ExcludeIds={(excludeIds != null && excludeIds.Count > 0 ? String.Join(", ", excludeIds.ToArray()) : defaultValue)}");
+            sb.AppendLine("; Exclude blocks containing these words (comma-separated, case-insensitive)");
+            sb.AppendLine("; Example: 'Airlock,Backup' excludes blocks with 'Airlock' or 'Backup' in their names");
+            sb.AppendLine();
+        }
+
+        /// <summary>
+        /// Writes the ItemFilter config field — restricts which item subtypes are shown
+        /// on item-summary screens (Ingots, Components, Ores, Items, Ammo, etc.).
+        /// Distinct from SearchId, which filters which BLOCKS' inventories get scanned.
+        /// </summary>
+        public static void AppendItemFilterConfig(StringBuilder sb, List<string> itemFilter, string defaultValue = "*")
+        {
+            string value = (itemFilter != null && itemFilter.Count > 0) ? String.Join(",", itemFilter.ToArray()) : defaultValue;
+            sb.AppendLine($"ItemFilter={value}");
+            sb.AppendLine("; Item subtype filter: Use '*' for all, or text to match item subtype IDs (case-insensitive substring match)");
+            sb.AppendLine("; Examples: 'Gold' shows only Gold items, 'Iron,Nickel' shows Iron and Nickel items");
+            sb.AppendLine();
+        }
+
+        /// <summary>
+        /// Parse the ItemFilter list out of a parsed MyIni config. Empty / "*" / missing
+        /// → empty list (caller should treat empty list as "no filter, show all").
+        /// </summary>
+        public static void ParseItemFilter(MyIni config, string section, List<string> itemFilter)
+        {
+            itemFilter.Clear();
+            if (!config.ContainsKey(section, "ItemFilter")) return;
+
+            string raw = config.Get(section, "ItemFilter").ToString();
+            if (string.IsNullOrWhiteSpace(raw)) return;
+
+            foreach (string s in raw.Split(','))
+            {
+                string t = s.Trim();
+                if (string.IsNullOrEmpty(t) || t == "*") continue;
+                itemFilter.Add(t);
+            }
+        }
+
+        /// <summary>
+        /// Returns true if the item should be shown — i.e. the filter is empty OR
+        /// the item's subtypeId/displayName contains at least one filter entry
+        /// (case-insensitive substring match, same semantics as SearchId/ExcludeIds).
+        /// </summary>
+        public static bool ItemPassesFilter(List<string> itemFilter, string subtypeId, string displayName = null)
+        {
+            if (itemFilter == null || itemFilter.Count == 0) return true;
+
+            string sub = subtypeId == null ? "" : subtypeId.ToLower();
+            string dn = displayName == null ? "" : displayName.ToLower();
+
+            foreach (string filter in itemFilter)
+            {
+                string f = filter.ToLower();
+                if (f.Length == 0) continue;
+                if (sub.Contains(f)) return true;
+                if (dn.Length > 0 && dn.Contains(f)) return true;
+            }
+
+            return false;
+        }
+
+        public static void AppendShowHeaderConfig(StringBuilder sb, bool value)
+        {
+            sb.AppendLine($"ShowHeader={value}");
+            sb.AppendLine("; Display the app title bar at the top of the screen");
+            sb.AppendLine();
+        }
+
+        public static void AppendShowSummaryConfig(StringBuilder sb, bool value)
+        {
+            sb.AppendLine($"ShowSummary={value}");
+            sb.AppendLine("; Display summary totals at the top (combined statistics for all matching blocks)");
+            sb.AppendLine();
+        }
+
+        public static void AppendShowMissingConfig(StringBuilder sb, bool value)
+        {
+            sb.AppendLine($"ShowMissing={value}");
+            sb.AppendLine("; Display items that have zero quantity (show empty inventory slots)");
+            sb.AppendLine();
+        }
+
+        public static void AppendShowRatioConfig(StringBuilder sb, bool value)
+        {
+            sb.AppendLine($"ShowRatio={value}");
+            sb.AppendLine("; Display current/maximum values as numbers instead of percentages");
+            sb.AppendLine();
+        }
+
+        public static void AppendShowBarsConfig(StringBuilder sb, bool value)
+        {
+            sb.AppendLine($"ShowBars={value}");
+            sb.AppendLine("; Display visual progress bars for capacity and resource levels");
+            sb.AppendLine();
+        }
+
+        public static void AppendShowSubgridsConfig(StringBuilder sb, bool value)
+        {
+            sb.AppendLine($"ShowSubgrids={value}");
+            sb.AppendLine("; Include blocks from subgrids connected via rotors, pistons, and hinges");
+            sb.AppendLine();
+        }
+
+        public static void AppendSubgridUpdateFrequencyConfig(StringBuilder sb, int value)
+        {
+            sb.AppendLine($"SubgridUpdateFrequency={value}");
+            sb.AppendLine("; Subgrid scan frequency: 1=fastest (60/sec), 10=normal (6/sec), 100=slowest (0.6/sec)");
+            sb.AppendLine();
+        }
+
+        public static void AppendShowDockedConfig(StringBuilder sb, bool value)
+        {
+            sb.AppendLine($"ShowDocked={value}");
+            sb.AppendLine("; Include blocks from grids connected via ship connectors");
+            sb.AppendLine();
+        }
+
+        public static void AppendUseColorsConfig(StringBuilder sb, bool value)
+        {
+            sb.AppendLine($"UseColors={value}");
+            sb.AppendLine("; Enable color-coded status indicators (green=good, yellow=warning, red=critical)");
+            sb.AppendLine();
+        }
+
+        /// <summary>
+        /// Writes the InvertBarColors config field — flips the per-item bar color
+        /// severity (default red=low/green=high becomes green=low/red=high). Useful
+        /// for "too much of this item" trackers (e.g. monitor gravel buildup).
+        /// Only affects bars on item-summary screens (Ingots, Components, Ammo,
+        /// Items, Ores). Text and non-item bars are unaffected.
+        /// </summary>
+        public static void AppendInvertBarColorsConfig(StringBuilder sb, bool value)
+        {
+            sb.AppendLine($"InvertBarColors={value}");
+            sb.AppendLine("; Flip per-item bar colors: false=red when below threshold (inventory-low warning, default)");
+            sb.AppendLine("; true=red when at or above threshold (overflow warning, e.g. 'too much gravel')");
+            sb.AppendLine();
+        }
+
+        public static void AppendScrollingConfig(StringBuilder sb, string sectionPrefix, bool toggleScroll = false, bool reverseDirection = false, int scrollSpeed = 60, int scrollLines = 1, int maxListLines = 5)
+        {
+            sb.AppendLine($"; [ {sectionPrefix} - SCROLLING OPTIONS ]");
+            sb.AppendLine($"ToggleScroll={toggleScroll}");
+            sb.AppendLine("; Enable scrolling to view items that don't fit on screen");
+            sb.AppendLine("; Set to 'true' to activate. Scrolling only occurs when there's overflow data.");
+            sb.AppendLine();
+            sb.AppendLine($"ReverseDirection={reverseDirection}");
+            sb.AppendLine("; Scroll direction: 'false' scrolls up (bottom items appear), 'true' scrolls down (top items appear)");
+            sb.AppendLine("; The list wraps around, so you'll eventually see all items in a continuous loop");
+            sb.AppendLine();
+            sb.AppendLine($"ScrollSpeed={scrollSpeed}");
+            sb.AppendLine("; Time between scroll steps in ticks (60 ticks ≈ 1 second at normal game speed)");
+            sb.AppendLine("; Lower = faster scrolling, Higher = slower scrolling");
+            sb.AppendLine();
+            sb.AppendLine($"ScrollLines={scrollLines}");
+            sb.AppendLine("; Number of lines to scroll per step");
+            sb.AppendLine("; Set to 1 for smooth scrolling, higher values for faster navigation");
+            sb.AppendLine();
+            if (maxListLines > 0)
+            {
+                sb.AppendLine($"MaxListLines={maxListLines}");
+                sb.AppendLine("; Maximum number of items to display per list (e.g., max wind turbines shown at once)");
+                sb.AppendLine("; Limits list length even if more screen space is available. Set to 0 to use all available space.");
+                sb.AppendLine("; Useful for grids with many blocks - shows a portion and scrolls through all items");
+                sb.AppendLine();
+            }
+        }
+
+        public static void StripExcessBlankLines(IMyTerminalBlock block)
+        {
+            string cd = block.CustomData;
+            if (!cd.Contains("\n\n\n")) return;
+            while (cd.Contains("\n\n\n"))
+                cd = cd.Replace("\n\n\n", "\n\n");
+            block.CustomData = cd;
+        }
+
+        // Known InfoLCD config section IDs — one per app. Kept in one place so
+        // PurgeLegacyAppSections doesn't accidentally strip anything else that
+        // happens to sit in the LCD's CustomData (other mods, user notes, etc.).
+        // Known InfoLCD (Apex Advanced) config section IDs - one per app.
+        // NOTE: this variant ships an extra "Extension" app that Apex Update does not have,
         // so any sync between the two must update BOTH the section list and the script
-        // mapping below.
+        // mapping below. Losing "SettingsExtension" here silently purges Extension config
+        // from multi-surface blocks.
         static readonly string[] _knownAppSections = new[] {
             "SettingsAirlockMonitorStatus", "SettingsAmmoSummary", "SettingsCargoSummary",
             "SettingsComponentsSummary", "SettingsContainerSummary", "SettingsDamageMonitorStatus",
             "SettingsDetailedInfoStatus", "SettingsDoorMonitorStatus", "SettingsExtension",
-            "SettingsFarmingSummary", "SettingsGasGenerationStatus", "SettingsGridInfoStatus",
-            "SettingsIngotsSummary", "SettingsItemsSummary", "SettingsLifeSupportStatus",
-            "SettingsOresSummary", "SettingsPowerStatus", "SettingsProductionStatus",
-            "SettingsSystemsStatus", "SettingsWeaponsSummary"
+            "SettingsFarmingSummary",
+            "SettingsGasGenerationStatus", "SettingsGridInfoStatus", "SettingsIngotsSummary",
+            "SettingsItemsSummary", "SettingsLifeSupportStatus", "SettingsOresSummary",
+            "SettingsPowerStatus", "SettingsProductionStatus", "SettingsSystemsStatus",
+            "SettingsWeaponsSummary"
         };
 
         // Maps a MyTextSurfaceScript identifier (as stored in IMyTextSurface.Script when
@@ -1785,7 +2019,7 @@ namespace MahrianeIndustries.LCDInfo
         // Used by PurgeLegacyAppSections to enumerate every app currently rendering on any
         // surface of a multi-surface block (Console Module LCD, cockpits, etc.) so those
         // sections are preserved even though only one app's Run() is executing at a time.
-        static readonly Dictionary<string, string> _scriptToSectionId = new Dictionary<string, string>(20)
+        static readonly Dictionary<string, string> _scriptToSectionId = new Dictionary<string, string>(19)
         {
             { "LCDInfoScreenAirlockMonitorSummary", "SettingsAirlockMonitorStatus" },
             { "LCDInfoScreenAmmoSummary",           "SettingsAmmoSummary" },
@@ -1819,8 +2053,14 @@ namespace MahrianeIndustries.LCDInfo
         /// Meant to be called once per Run() cycle; it's a no-op (single Contains check)
         /// when nothing needs cleaning.
         ///
-        /// Mirrors the same fix in Apex Update (commits 399f9bd + 527c11f) with the
-        /// Extension app added to both the section list and the script mapping.
+        /// History:
+        /// - GitHub issue #11: leftover [SettingsDetailedInfoStatus] on a Power LCD
+        ///   caused a game hang on merge-block state changes. First fix stripped every
+        ///   section except the caller's — which regressed multi-surface blocks (DoctorJ,
+        ///   Steam Workshop, 2026-07-08): each surface's app kept purging the OTHER
+        ///   surfaces' sections every tick, so user edits couldn't persist. This
+        ///   revision enumerates the block's surfaces to build the actual "in use"
+        ///   set before stripping anything.
         /// </summary>
         public static void PurgeLegacyAppSections(IMyTerminalBlock block, string currentSectionId)
         {

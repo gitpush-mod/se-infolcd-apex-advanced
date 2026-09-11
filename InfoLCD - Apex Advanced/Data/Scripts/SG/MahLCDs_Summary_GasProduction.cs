@@ -87,16 +87,15 @@ namespace MahrianeIndustries.LCDInfo
             sb.AppendLine($"[{CONFIG_SECTION_ID}]");
             sb.AppendLine();
             sb.AppendLine("; [ GASPRODUCTION - GENERAL OPTIONS ]");
-            sb.AppendLine($"SearchId={searchId}");
-            sb.AppendLine($"ExcludeIds={(excludeIds != null && excludeIds.Count > 0 ? String.Join(", ", excludeIds.ToArray()) : "Airlock,")}");
-            sb.AppendLine($"ShowHeader={surfaceData.showHeader}");
-            sb.AppendLine($"ShowRatio={surfaceData.showRatio}");
-            sb.AppendLine($"ShowBars={surfaceData.showBars}");
-            sb.AppendLine($"ShowSubgrids={surfaceData.showSubgrids}");
-            sb.AppendLine($"SubgridUpdateFrequency={surfaceData.subgridUpdateFrequency}");
-            sb.AppendLine("; Subgrid scan frequency: 1=fastest (60/sec), 10=normal (6/sec), 100=slowest (0.6/sec)");
-            sb.AppendLine($"ShowDocked={surfaceData.showDocked}");
-            sb.AppendLine($"UseColors={surfaceData.useColors}");
+            ConfigHelpers.AppendSearchIdConfig(sb, searchId);
+            ConfigHelpers.AppendExcludeIdsConfig(sb, excludeIds, "Airlock,");
+            ConfigHelpers.AppendShowHeaderConfig(sb, surfaceData.showHeader);
+            ConfigHelpers.AppendShowRatioConfig(sb, surfaceData.showRatio);
+            ConfigHelpers.AppendShowBarsConfig(sb, surfaceData.showBars);
+            ConfigHelpers.AppendShowSubgridsConfig(sb, surfaceData.showSubgrids);
+            ConfigHelpers.AppendSubgridUpdateFrequencyConfig(sb, surfaceData.subgridUpdateFrequency);
+            ConfigHelpers.AppendShowDockedConfig(sb, surfaceData.showDocked);
+            ConfigHelpers.AppendUseColorsConfig(sb, surfaceData.useColors);
 
             sb.AppendLine();
             sb.AppendLine("; [ GASPRODUCTION - SCROLLING OPTIONS ]");
@@ -204,7 +203,7 @@ namespace MahrianeIndustries.LCDInfo
                     if (config.ContainsKey(CONFIG_SECTION_ID, "ReverseDirection"))
                         reverseDirection = config.Get(CONFIG_SECTION_ID, "ReverseDirection").ToBoolean(false);
                     if (config.ContainsKey(CONFIG_SECTION_ID, "ScrollSpeed"))
-                        scrollSpeed = Math.Max(1, config.Get(CONFIG_SECTION_ID, "ScrollSpeed").ToInt32(6));
+                        scrollSpeed = Math.Max(1, config.Get(CONFIG_SECTION_ID, "ScrollSpeed").ToInt32(60));
                     if (config.ContainsKey(CONFIG_SECTION_ID, "ScrollLines"))
                         scrollLines = Math.Max(1, config.Get(CONFIG_SECTION_ID, "ScrollLines").ToInt32(1));
                     if (config.ContainsKey(CONFIG_SECTION_ID, "MaxListLines"))
@@ -235,6 +234,7 @@ namespace MahrianeIndustries.LCDInfo
                 else
                 {
                     MyLog.Default.WriteLine($"MahrianeIndustries.LCDInfo.LCDInfoScreenGasGenerationSummary: Config Syntax error at Line {result}");
+                    configError = true;
                 }
             }
             catch (Exception e)
@@ -268,12 +268,12 @@ namespace MahrianeIndustries.LCDInfo
     List<IMyGasGenerator> generators = new List<IMyGasGenerator>();
     List<IMyGasTank> tanks = new List<IMyGasTank>();
     List<IMyAirVent> airVents = new List<IMyAirVent>();
-    
-    // Cached subgrid collections (persisted between main grid scans)
-    List<IMyOxygenFarm> subgridOxygenFarms = new List<IMyOxygenFarm>();
-    List<IMyGasGenerator> subgridGenerators = new List<IMyGasGenerator>();
-    List<IMyGasTank> subgridTanks = new List<IMyGasTank>();
-    List<IMyAirVent> subgridAirVents = new List<IMyAirVent>();
+
+        // Cached subgrid collections
+        List<IMyOxygenFarm> subgridOxygenFarms = new List<IMyOxygenFarm>();
+        List<IMyGasGenerator> subgridGenerators = new List<IMyGasGenerator>();
+        List<IMyGasTank> subgridTanks = new List<IMyGasTank>();
+        List<IMyAirVent> subgridAirVents = new List<IMyAirVent>();
 
     // Reusable lists to avoid GC allocations
     List<VRage.Game.ModAPI.Ingame.MyInventoryItem> _cachedInventoryItems = new List<VRage.Game.ModAPI.Ingame.MyInventoryItem>();
@@ -326,8 +326,9 @@ namespace MahrianeIndustries.LCDInfo
             if (Sandbox.ModAPI.MyAPIGateway.Utilities?.IsDedicated ?? false)
                 return;
 
-            // Fix for issue #11 + multi-surface regression fix (mirrors Apex Update).
-            // Cheap no-op unless a foreign [Settings*] section is present on this block.
+            // Fix for issue #11 (leftover legacy sibling app sections can trigger
+            // a hang tied to grid-state changes like merge blocks). Cheap no-op
+            // unless a foreign [Settings*] section is actually present.
             ConfigHelpers.PurgeLegacyAppSections(myTerminalBlock, CONFIG_SECTION_ID);
 
             if (myTerminalBlock.CustomData.Length <= 0 || !myTerminalBlock.CustomData.Contains(CONFIG_SECTION_ID))
@@ -377,40 +378,70 @@ namespace MahrianeIndustries.LCDInfo
 
         void UpdateBlocks ()
         {
-            // Determine if we should scan subgrids this cycle
-            bool scanSubgrids = false;
-            if (surfaceData.showSubgrids)
-            {
-                subgridScanTick++;
-                if (subgridScanTick >= surfaceData.subgridUpdateFrequency / 10)
-                {
-                    subgridScanTick = 0;
-                    scanSubgrids = true;
-                }
-            }
-
             try
             {
                 var myCubeGrid = myTerminalBlock.CubeGrid as MyCubeGrid;
-
                 if (myCubeGrid == null) return;
 
                 IMyCubeGrid cubeGrid = myCubeGrid as IMyCubeGrid;
                 isStation = cubeGrid.IsStatic;
                 gridId = cubeGrid.CustomName;
 
-                // Always get main grid blocks
+                // Determine if we should scan subgrids on this tick
+                bool scanSubgrids = false;
+                if (surfaceData.showSubgrids)
+                {
+                    subgridScanTick++;
+                    if (subgridScanTick >= surfaceData.subgridUpdateFrequency / 10)  // Divide by 10 for Update10 timing
+                    {
+                        subgridScanTick = 0;
+                        scanSubgrids = true;
+                    }
+                }
+
+                // Always scan main grid blocks (instant updates)
                 var mainBlocks = MahUtillities.GetBlocks(myCubeGrid, searchId, excludeIds, ref gridMass, false);
 
+                // Periodically update subgrid cache
+                if (scanSubgrids)
+                {
+                    var allBlocks = MahUtillities.GetBlocks(myCubeGrid, searchId, excludeIds, ref gridMass, surfaceData.showSubgrids);
+                    
+                    // Extract subgrid-only blocks
+                    subgridOxygenFarms.Clear();
+                    subgridGenerators.Clear();
+                    subgridTanks.Clear();
+                    subgridAirVents.Clear();
+
+                    foreach (var block in allBlocks)
+                    {
+                        if (!mainBlocks.Contains(block))
+                        {
+                            if (block is IMyGasGenerator)
+                            {
+                                var gen = (IMyGasGenerator)block;
+                                string name = gen.CustomName ?? string.Empty;
+                                string subtype = gen.BlockDefinition.SubtypeName ?? string.Empty;
+                                if (name.IndexOf("irrigation", StringComparison.OrdinalIgnoreCase) >= 0 || subtype.IndexOf("irrigation", StringComparison.OrdinalIgnoreCase) >= 0)
+                                    continue; // exclude irrigation system blocks
+                                subgridGenerators.Add(gen);
+                            }
+                            else if (block is IMyGasTank)
+                                subgridTanks.Add((IMyGasTank)block);
+                            else if (block is IMyOxygenFarm)
+                                subgridOxygenFarms.Add((IMyOxygenFarm)block);
+                            else if (block is IMyAirVent)
+                                subgridAirVents.Add((IMyAirVent)block);
+                        }
+                    }
+                }
+
+                // Categorize main grid blocks
                 oxygenFarms.Clear();
                 generators.Clear();
                 tanks.Clear();
                 airVents.Clear();
 
-                oxygenTanks = 0;
-                hydrogenTanks = 0;
-
-                // Process main grid blocks
                 foreach (var myBlock in mainBlocks)
                 {
                     if (myBlock == null) continue;
@@ -438,52 +469,15 @@ namespace MahrianeIndustries.LCDInfo
                     }
                 }
 
-                // Periodically update subgrid cache
-                if (scanSubgrids)
-                {
-                    var allBlocks = MahUtillities.GetBlocks(myCubeGrid, searchId, excludeIds, ref gridMass, true);
-                    
-                    subgridOxygenFarms.Clear();
-                    subgridGenerators.Clear();
-                    subgridTanks.Clear();
-                    subgridAirVents.Clear();
-                    
-                    // Extract subgrid-only blocks
-                    foreach (var myBlock in allBlocks)
-                    {
-                        if (mainBlocks.Contains(myBlock)) continue;
-                        if (myBlock == null) continue;
-
-                        if (myBlock is IMyGasGenerator)
-                        {
-                            var gen = (IMyGasGenerator)myBlock;
-                            string name = gen.CustomName ?? string.Empty;
-                            string subtype = gen.BlockDefinition.SubtypeName ?? string.Empty;
-                            if (name.IndexOf("irrigation", StringComparison.OrdinalIgnoreCase) >= 0 || subtype.IndexOf("irrigation", StringComparison.OrdinalIgnoreCase) >= 0)
-                                continue; // exclude irrigation system blocks
-                            subgridGenerators.Add(gen);
-                        }
-                        else if (myBlock is IMyGasTank)
-                        {
-                            subgridTanks.Add((IMyGasTank)myBlock);
-                        }
-                        else if (myBlock is IMyOxygenFarm)
-                        {
-                            subgridOxygenFarms.Add((IMyOxygenFarm)myBlock);
-                        }
-                        else if (myBlock is IMyAirVent)
-                        {
-                            subgridAirVents.Add((IMyAirVent)myBlock);
-                        }
-                    }
-                }
-                
-                // Merge cached subgrid blocks
+                // Merge main (fresh) and subgrid (cached) collections
                 oxygenFarms.AddRange(subgridOxygenFarms);
                 generators.AddRange(subgridGenerators);
                 tanks.AddRange(subgridTanks);
                 airVents.AddRange(subgridAirVents);
 
+                // Separate tank counts
+                oxygenTanks = 0;
+                hydrogenTanks = 0;
                 var separatedTanks = MahUtillities.SeparateGasTanks(tanks);
                 hydrogenTanks = separatedTanks.HydrogenCount;
                 oxygenTanks = separatedTanks.OxygenCount;
@@ -677,11 +671,12 @@ namespace MahrianeIndustries.LCDInfo
                     if (farm == null) continue;
 
                     var name = farm.CustomName;
-                    var currentOutputString = farm.DetailedInfo.Split('\n')[2].Replace("Oxygen Output:", "").Replace("L/min", "").Trim();
-
-                    var currentOutput = 0.0f;
-                    float.TryParse(currentOutputString, out currentOutput);
-                    outputOverall += currentOutput;
+                    // Live oxygen output via ResourceSource.MaxOutput — the current sun-adjusted production
+                    // capability (L/s). CurrentOutput would be 0 when nothing is consuming, but players want
+                    // to see what the farm IS producing, not what's being pulled. *60 for L/min display.
+                    var source = farm.Components.Get<MyResourceSourceComponent>();
+                    if (source != null)
+                        outputOverall += source.MaxOutput * 60f;
                 }
 
                 SurfaceDrawer.WriteTextSprite(ref frame, position, surfaceData, $"{MahDefinitions.LiterFormat(outputOverall)}/min", TextAlignment.RIGHT, surfaceData.useColors ? Color.GreenYellow : surfaceData.surface.ScriptForegroundColor);
@@ -826,7 +821,12 @@ namespace MahrianeIndustries.LCDInfo
                     string name = oxygenFarm.CustomName;
                     if (name.Length > maxNameLength) name = name.Substring(0, maxNameLength);
 
-                    var currentOutput = oxygenFarm.DetailedInfo.Split('\n')[2].Replace("Oxygen Output:", "").Trim();
+                    // Live oxygen output via ResourceSource.MaxOutput — sun-adjusted production capability
+                    // (L/s). CurrentOutput is 0 when nothing consumes; MaxOutput reflects what the farm is
+                    // producing right now. *60 for L/min display.
+                    var source = oxygenFarm.Components.Get<MyResourceSourceComponent>();
+                    float outputLPerMin = source != null ? source.MaxOutput * 60f : 0f;
+                    var currentOutput = $"{MahDefinitions.LiterFormat(outputLPerMin)}/min";
                     var state = $"{(!oxygenFarm.IsWorking ? "    Off" : !oxygenFarm.CanProduce ? "  Idle" : "    On")}";
                     var stateColor = !surfaceData.useColors ? surfaceData.surface.ScriptForegroundColor : state.Contains("Off") ? Color.Orange : state.Contains("Idle") ? Color.Yellow : Color.GreenYellow;
 

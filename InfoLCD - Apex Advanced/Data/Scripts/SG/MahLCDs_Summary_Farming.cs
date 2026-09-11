@@ -39,9 +39,7 @@ namespace MahrianeIndustries.LCDInfo
     int workingIrrigationSystems = 0;
 
     List<IMyTerminalBlock> farmPlots = new List<IMyTerminalBlock>();
-    
-    // Cached subgrid farm plots (persisted between main grid scans)
-    List<IMyTerminalBlock> subgridFarmPlots = new List<IMyTerminalBlock>();
+    List<IMyTerminalBlock> subgridFarmPlots = new List<IMyTerminalBlock>();  // Cached subgrid farm plots
 
     // Reusable lists to avoid GC allocations
     List<VRage.Game.ModAPI.Ingame.MyInventoryItem> _cachedInventoryItems = new List<VRage.Game.ModAPI.Ingame.MyInventoryItem>();
@@ -60,7 +58,14 @@ namespace MahrianeIndustries.LCDInfo
         string searchId = "*";
         List<string> excludeIds = new List<string>();
         int subgridScanTick = 0;
+        bool configError = false;
         bool compactMode = false;
+        bool toggleScroll = false;
+        bool reverseDirection = false;
+        int scrollSpeed = 60;
+        int scrollLines = 1;
+        int scrollOffset = 0;
+        int ticksSinceLastScroll = 0;
         Sandbox.ModAPI.Ingame.MyShipMass gridMass;
 
         public LCDFarmingSummaryInfo(IMyTextSurface surface, IMyCubeBlock block, Vector2 size) : base(surface, block, size)
@@ -107,15 +112,37 @@ namespace MahrianeIndustries.LCDInfo
             if (Sandbox.ModAPI.MyAPIGateway.Utilities?.IsDedicated ?? false)
                 return;
 
-            // Fix for issue #11 + multi-surface regression fix (mirrors Apex Update).
-            // Cheap no-op unless a foreign [Settings*] section is present on this block.
+            // Fix for issue #11 (leftover legacy sibling app sections can trigger
+            // a hang tied to grid-state changes like merge blocks). Cheap no-op
+            // unless a foreign [Settings*] section is actually present.
             ConfigHelpers.PurgeLegacyAppSections(myTerminalBlock, CONFIG_SECTION_ID);
 
             if (myTerminalBlock.CustomData.Length <= 0 || !myTerminalBlock.CustomData.Contains(CONFIG_SECTION_ID))
                 CreateConfig();
 
             LoadConfig();
+
+            // Update scroll offset if scrolling is enabled
+            if (toggleScroll)
+            {
+                ticksSinceLastScroll += 10;  // Update10 fires every 10 ticks — must increment by 10
+                if (ticksSinceLastScroll >= scrollSpeed)
+                {
+                    ticksSinceLastScroll = 0;
+                    if (reverseDirection)
+                        scrollOffset -= scrollLines;
+                    else
+                        scrollOffset += scrollLines;
+                }
+            }
+            else
+            {
+                scrollOffset = 0;
+                ticksSinceLastScroll = 0;
+            }
+
             UpdateBlocks();
+            UpdateResourceBars();
             Draw();
         }
 
@@ -140,16 +167,20 @@ namespace MahrianeIndustries.LCDInfo
             sb.AppendLine();
             sb.AppendLine("; [ FARMING - GENERAL OPTIONS ]");
             sb.AppendLine($"SearchId={(!string.IsNullOrEmpty(searchId) ? searchId : "*")}");
+            sb.AppendLine("; Block name filter: Use '*' for all, or text to match block names (case-insensitive substring match)");
+            sb.AppendLine("; Examples: 'Cargo' matches 'Main Cargo', 'Engineering,Medical' matches blocks containing either word");
             sb.AppendLine($"ExcludeIds={string.Join(",", excludeIds)}");
-            sb.AppendLine($"ShowHeader={surfaceData.showHeader}");
-            sb.AppendLine($"ShowSummary={surfaceData.showSummary}");
-            sb.AppendLine($"ShowSubgrids={surfaceData.showSubgrids}");
-            sb.AppendLine($"SubgridUpdateFrequency={surfaceData.subgridUpdateFrequency}");
-            sb.AppendLine("; Subgrid scan frequency: 1=fastest (60/sec), 10=normal (6/sec), 100=slowest (0.6/sec)");
-            sb.AppendLine($"ShowDocked={surfaceData.showDocked}");
-            sb.AppendLine($"UseColors={surfaceData.useColors}");
+            sb.AppendLine("; Exclude blocks containing these words (comma-separated, case-insensitive)");
+            sb.AppendLine("; Example: 'Airlock,Backup' excludes blocks with 'Airlock' or 'Backup' in their names");
+            ConfigHelpers.AppendShowHeaderConfig(sb, surfaceData.showHeader);
+            ConfigHelpers.AppendShowSummaryConfig(sb, surfaceData.showSummary);
+            ConfigHelpers.AppendShowSubgridsConfig(sb, surfaceData.showSubgrids);
+            ConfigHelpers.AppendSubgridUpdateFrequencyConfig(sb, surfaceData.subgridUpdateFrequency);
+            ConfigHelpers.AppendShowDockedConfig(sb, surfaceData.showDocked);
+            ConfigHelpers.AppendUseColorsConfig(sb, surfaceData.useColors);
 
-            sb.AppendLine();
+            ConfigHelpers.AppendScrollingConfig(sb, "FARMING", toggleScroll, reverseDirection, scrollSpeed, scrollLines, 0);
+
             sb.AppendLine("; [ FARMING - LAYOUT OPTIONS ]");
             sb.AppendLine($"TextSize={surfaceData.textSize}");
             sb.AppendLine($"ViewPortOffsetX={surfaceData.viewPortOffsetX}");
@@ -178,9 +209,10 @@ namespace MahrianeIndustries.LCDInfo
         {
             try
             {
+                configError = false;
                 MyIniParseResult result;
                 TryCreateSurfaceData();
-                if (config.TryParse(myTerminalBlock.CustomData, CONFIG_SECTION_ID, out result))
+                if (config.TryParse(myTerminalBlock.CustomData, out result))
                 {
                     if (config.ContainsKey(CONFIG_SECTION_ID, "ShowHeader")) surfaceData.showHeader = config.Get(CONFIG_SECTION_ID, "ShowHeader").ToBoolean();
                     if (config.ContainsKey(CONFIG_SECTION_ID, "ShowSummary")) surfaceData.showSummary = config.Get(CONFIG_SECTION_ID, "ShowSummary").ToBoolean();
@@ -215,6 +247,15 @@ namespace MahrianeIndustries.LCDInfo
                     if (config.ContainsKey(CONFIG_SECTION_ID, "ShowWaterProduction")) showWaterProduction = config.Get(CONFIG_SECTION_ID, "ShowWaterProduction").ToBoolean(true);
                     if (config.ContainsKey(CONFIG_SECTION_ID, "NutrientPelletMinAmount")) nutrientPelletMinAmount = config.Get(CONFIG_SECTION_ID, "NutrientPelletMinAmount").ToInt32();
 
+                    // Scrolling options (optional; defaults: off, forward, 60 ticks, 1 plot, 5 max)
+                    if (config.ContainsKey(CONFIG_SECTION_ID, "ToggleScroll"))
+                        toggleScroll = config.Get(CONFIG_SECTION_ID, "ToggleScroll").ToBoolean(false);
+                    if (config.ContainsKey(CONFIG_SECTION_ID, "ReverseDirection"))
+                        reverseDirection = config.Get(CONFIG_SECTION_ID, "ReverseDirection").ToBoolean(false);
+                    if (config.ContainsKey(CONFIG_SECTION_ID, "ScrollSpeed"))
+                        scrollSpeed = Math.Max(1, config.Get(CONFIG_SECTION_ID, "ScrollSpeed").ToInt32(60));
+                    if (config.ContainsKey(CONFIG_SECTION_ID, "ScrollLines"))
+                        scrollLines = Math.Max(1, config.Get(CONFIG_SECTION_ID, "ScrollLines").ToInt32(1));
                     surfaceData.newLine = new Vector2(0, 30 * surfaceData.textSize);
 
                     if (compactMode)
@@ -229,6 +270,7 @@ namespace MahrianeIndustries.LCDInfo
                 else
                 {
                     MyLog.Default.WriteLine("MahrianeIndustries.LCDInfo.LCDFarmingSummaryInfo: Config syntax error: " + result.ToString());
+                    configError = true;
                 }
             }
             catch (Exception e)
@@ -239,38 +281,64 @@ namespace MahrianeIndustries.LCDInfo
 
         void UpdateBlocks()
         {
-            // Determine if we should scan subgrids this cycle
-            bool scanSubgrids = false;
-            if (surfaceData.showSubgrids)
-            {
-                subgridScanTick++;
-                if (subgridScanTick >= surfaceData.subgridUpdateFrequency / 10)
-                {
-                    subgridScanTick = 0;
-                    scanSubgrids = true;
-                }
-            }
-
             try
             {
+                var myCubeGrid = myTerminalBlock.CubeGrid as MyCubeGrid;
+                if (myCubeGrid == null) return;
+
+                // Determine if we should scan subgrids on this tick
+                bool scanSubgrids = false;
+                if (surfaceData.showSubgrids)
+                {
+                    subgridScanTick++;
+                    if (subgridScanTick >= surfaceData.subgridUpdateFrequency / 10)  // Divide by 10 for Update10 timing
+                    {
+                        subgridScanTick = 0;
+                        scanSubgrids = true;
+                    }
+                }
+
+                // Always scan main grid blocks (instant updates)
+                var mainBlocks = MahUtillities.GetBlocks(myCubeGrid, searchId, excludeIds, ref gridMass, false, false);
+
+                // Periodically update subgrid cache
+                if (scanSubgrids && surfaceData.showSubgrids)
+                {
+                    var allBlocks = MahUtillities.GetBlocks(myCubeGrid, searchId, excludeIds, ref gridMass, surfaceData.showSubgrids, false);
+                    subgridFarmPlots.Clear();
+                    
+                    foreach (var b in allBlocks)
+                    {
+                        if (b == null || mainBlocks.Contains(b)) continue;
+                        var subtype = b.BlockDefinition != null ? b.BlockDefinition.Id.SubtypeName : "";
+                        var lower = subtype.ToLower();
+
+                        // Farm plot detection - only cache these, not irrigation systems
+                        if (lower.Contains("farmplot") || lower.Contains("farm_block") || lower.Contains("farmblock") || lower.Contains("flat_farm") || lower.Contains("verticalfarmplot") || lower.Contains("insetfarmplot"))
+                        {
+                            if (b is IMyTerminalBlock)
+                                subgridFarmPlots.Add((IMyTerminalBlock)b);
+                        }
+                    }
+                }
+                else if (!surfaceData.showSubgrids)
+                {
+                    subgridFarmPlots.Clear();
+                }
+
+                // Process main grid blocks and accumulate counts
                 totalFarmPlots = 0;
                 workingFarmPlots = 0;
                 totalIrrigationSystems = 0;
                 workingIrrigationSystems = 0;
                 farmPlots.Clear();
 
-                var myCubeGrid = myTerminalBlock.CubeGrid as MyCubeGrid;
-                if (myCubeGrid == null) return;
-
-                // Always get main grid blocks
-                var mainBlocks = MahUtillities.GetBlocks(myCubeGrid, searchId, excludeIds, ref gridMass, false, false);
-                if (mainBlocks == null) return;
-
                 // Process main grid blocks
                 foreach (var b in mainBlocks)
                 {
                     if (b == null) continue;
-                        var subtype = b.BlockDefinition != null ? b.BlockDefinition.Id.SubtypeName : "";
+                    if (b.CubeGrid != myCubeGrid) continue;  // defensive: skip any block not physically on the main grid
+                    var subtype = b.BlockDefinition != null ? b.BlockDefinition.Id.SubtypeName : "";
                     var lower = subtype.ToLower();
 
                     // Irrigation System detection (separate block type)
@@ -302,57 +370,20 @@ namespace MahrianeIndustries.LCDInfo
                         continue;
                     }
                 }
-
-                // Periodically update subgrid cache
-                if (scanSubgrids)
+                
+                // Add cached subgrid farm plots
+                if (surfaceData.showSubgrids && subgridFarmPlots != null && subgridFarmPlots.Count > 0)
                 {
-                    var allBlocks = MahUtillities.GetBlocks(myCubeGrid, searchId, excludeIds, ref gridMass, true, false);
-                    if (allBlocks != null)
+                    totalFarmPlots += subgridFarmPlots.Count;
+                    farmPlots.AddRange(subgridFarmPlots);
+                    
+                    // Count working subgrid farms
+                    foreach (var plot in subgridFarmPlots)
                     {
-                        subgridFarmPlots.Clear();
-                        
-                        // Extract subgrid-only blocks
-                        foreach (var b in allBlocks)
-                        {
-                            if (mainBlocks.Contains(b)) continue;
-                            if (b == null) continue;
-                            var subtype = b.BlockDefinition != null ? b.BlockDefinition.Id.SubtypeName : "";
-                            var lower = subtype.ToLower();
-
-                            // Irrigation System detection (separate block type)
-                            if (lower.Contains("irrigation"))
-                            {
-                                totalIrrigationSystems++;
-                                if (b is IMyTerminalBlock)
-                                {
-                                    var termBlock = (IMyTerminalBlock)b;
-                                    // Count working irrigation systems (functional and actually working)
-                                    if (termBlock.IsFunctional && termBlock.IsWorking)
-                                        workingIrrigationSystems++;
-                                }
-                                continue;
-                            }
-
-                            // Farm plot detection (base game uses FarmBlock/FarmPlot patterns; modded we include vertical/inset variants)
-                            if (lower.Contains("farmplot") || lower.Contains("farm_block") || lower.Contains("farmblock") || lower.Contains("flat_farm") || lower.Contains("verticalfarmplot") || lower.Contains("insetfarmplot"))
-                            {
-                                totalFarmPlots++;
-                                if (b is IMyTerminalBlock)
-                                {
-                                    var termBlock = (IMyTerminalBlock)b;
-                                    subgridFarmPlots.Add(termBlock);
-                                    // Count working farms (functional and actually working)
-                                    if (termBlock.IsFunctional && termBlock.IsWorking)
-                                        workingFarmPlots++;
-                                }
-                                continue;
-                            }
-                        }
+                        if (plot != null && plot.IsFunctional && plot.IsWorking)
+                            workingFarmPlots++;
                     }
                 }
-                
-                // Merge cached subgrid farm plots
-                farmPlots.AddRange(subgridFarmPlots);
             }
             catch (Exception e)
             {
@@ -390,7 +421,7 @@ namespace MahrianeIndustries.LCDInfo
                 }
                 catch { }
 
-                // Compute HydroPellets (Nutrient Pellets) volumes
+                // Compute Ice volumes similar to Gas Production screen
                 CargoItemDefinition hydroPelletsDef = MahDefinitions.GetDefinition("Ore", "HydroPellets");
                 float hydroPelletsItemVolumeL = (hydroPelletsDef != null ? hydroPelletsDef.volume : 0f); // volume is already in liters
                 int targetHydroPelletsItems = (nutrientPelletMinAmount > 0 ? nutrientPelletMinAmount : (hydroPelletsDef != null ? hydroPelletsDef.minAmount : 5000));
@@ -400,7 +431,7 @@ namespace MahrianeIndustries.LCDInfo
                 }
 
                 Sandbox.ModAPI.Ingame.MyShipMass tmpMass = gridMass;
-                var allBlocks = MahUtillities.GetBlocks(myCubeGrid, searchId, excludeIds, ref tmpMass, true, false);
+                var allBlocks = MahUtillities.GetBlocks(myCubeGrid, searchId, excludeIds, ref tmpMass, surfaceData.showSubgrids, false);
                 if (allBlocks != null && allBlocks.Count > 0)
                 {
                     var hydroPelletsData = MahUtillities.GetGridHydroPelletsData(allBlocks, hydroPelletsItemVolumeL, _cachedInventoryItems);
@@ -429,12 +460,17 @@ namespace MahrianeIndustries.LCDInfo
                 var viewport = new RectangleF((mySurface.TextureSize - mySurface.SurfaceSize) / 2f, mySurface.SurfaceSize);
                 var position = new Vector2(surfaceData.viewPortOffsetX, surfaceData.viewPortOffsetY) + viewport.Position;
 
+                if (configError)
+                {
+                    SurfaceDrawer.DrawErrorSprite(ref frame, surfaceData, "<< Config error. Please Delete CustomData >>", Color.Orange);
+                    frame.Dispose();
+                    return;
+                }
+
                 if (surfaceData.showHeader)
                 {
                     SurfaceDrawer.DrawHeader(ref frame, ref position, surfaceData, "Farming", "");
                 }
-
-                UpdateResourceBars();
 
                 if (compactMode)
                 {
@@ -502,11 +538,29 @@ namespace MahrianeIndustries.LCDInfo
                     // Sort farm plots alphabetically by custom name
                     MahSorting.SortBlocksByName(farmPlots);
 
-                    // List farm plots with three-line entries
-                    foreach (var plot in farmPlots)
+                    // Each farm plot entry is 4 line-heights: name, badge+hydration, water+growth, blank spacer
+                    const int linesPerEntry = 4;
+                    float lineHeight = 30f * surfaceData.textSize;
+                    float remainingHeight = mySurface.SurfaceSize.Y - position.Y;
+                    int availableDataLines = Math.Max(linesPerEntry, (int)((remainingHeight - (lineHeight * 0.5f)) / lineHeight));
+                    int availableSlots = availableDataLines / linesPerEntry;
+
+                    int totalPlots = farmPlots.Count;
+                    int startIndex = 0;
+
+                    if (toggleScroll && totalPlots > availableSlots)
                     {
-                        if (plot == null) continue;
-                        DrawFarmPlotEntry(ref frame, ref position, plot);
+                        int normalizedOffset = ((scrollOffset % totalPlots) + totalPlots) % totalPlots;
+                        startIndex = normalizedOffset;
+                    }
+
+                    int slotsDrawn = 0;
+                    for (int i = 0; i < totalPlots && slotsDrawn < availableSlots; i++)
+                    {
+                        int plotIndex = (startIndex + i) % totalPlots;
+                        if (farmPlots[plotIndex] == null) continue;
+                        DrawFarmPlotEntry(ref frame, ref position, farmPlots[plotIndex]);
+                        slotsDrawn++;
                     }
                 }
 
@@ -690,18 +744,22 @@ namespace MahrianeIndustries.LCDInfo
             try
             {
                 // Get real-time crop state from IMyFarmPlotLogic component
+                // Also grab GetDetailedInfoWithoutRequiredInput() — this is a direct component call
+                // and is reliable for subgrid blocks where plot.DetailedInfo may be empty/stale
+                string componentDetailedInfo = null;
                 var cubeBlock = plot as MyCubeBlock;
                 if (cubeBlock != null && cubeBlock.Components != null)
                 {
                     foreach (var comp in cubeBlock.Components)
                     {
                         if (comp == null) continue;
-                        
+
                         var farmLogic = comp as Sandbox.ModAPI.IMyFarmPlotLogic;
                         if (farmLogic != null)
                         {
                             // IsPlantPlanted updates in real-time - this is our authoritative source
                             cropSlotEmpty = !farmLogic.IsPlantPlanted;
+                            try { componentDetailedInfo = farmLogic.GetDetailedInfoWithoutRequiredInput(); } catch { }
                             break;
                         }
                     }
@@ -744,7 +802,9 @@ namespace MahrianeIndustries.LCDInfo
                 }
 
                 // Parse DetailedInfo for crop name, growth%, health%, and hydration (if not found via component)
-                var info = plot.DetailedInfo ?? string.Empty;
+                // Prefer the component's direct method call — it's always current and works for subgrid blocks.
+                // Fall back to plot.DetailedInfo in case the component wasn't found (non-farming block, etc.)
+                var info = !string.IsNullOrWhiteSpace(componentDetailedInfo) ? componentDetailedInfo : (plot.DetailedInfo ?? string.Empty);
                 if (!string.IsNullOrWhiteSpace(info))
                 {
                     var lines = info.Split('\n');
@@ -1087,7 +1147,7 @@ namespace MahrianeIndustries.LCDInfo
             return false;
         }
 
-        // Get grid-wide water/HydroSolution stored in gas tanks (supports both vanilla Water and Apex Advanced HydroSolution)
+        // Get grid-wide water stored in gas tanks
         float GetGridWaterFromTanks(MyCubeGrid grid)
         {
             float totalWater = 0f;
@@ -1120,7 +1180,7 @@ namespace MahrianeIndustries.LCDInfo
             return totalWater;
         }
 
-        // Get grid-wide water/HydroSolution tank capacity (supports both vanilla Water and Apex Advanced HydroSolution)
+        // Get grid-wide water tank capacity
         float GetGridWaterTankCapacity(MyCubeGrid grid)
         {
             float totalCapacity = 0f;
@@ -1153,7 +1213,7 @@ namespace MahrianeIndustries.LCDInfo
             return totalCapacity;
         }
 
-        // Calculate grid-wide water/HydroSolution production and consumption by summing individual blocks
+        // Calculate grid-wide water production and consumption by summing individual blocks
         void CalculateGridWaterFlow(MyCubeGrid grid, out float productionLPerMin, out float consumptionLPerMin)
         {
             productionLPerMin = 0f;
@@ -1174,7 +1234,7 @@ namespace MahrianeIndustries.LCDInfo
                     var subtype = blockDef.Id.SubtypeName ?? "";
                     var lower = subtype.ToLower();
 
-                    // Check for water/HydroSolution producers (O2/H2 generators, Irrigation Systems)
+                    // Check for water producers (O2/H2 generators, irrigation systems producing water)
                     var oxygenGen = block as IMyGasGenerator;
                     if (oxygenGen != null)
                     {
@@ -1187,7 +1247,7 @@ namespace MahrianeIndustries.LCDInfo
                                 if (gasInfo.Id.SubtypeName.Equals("Water", StringComparison.OrdinalIgnoreCase) ||
                                     gasInfo.Id.SubtypeName.Equals("HydroSolution", StringComparison.OrdinalIgnoreCase))
                                 {
-                                    // Calculate production rate: ice/pellets consumption * ice-to-gas ratio
+                                    // Calculate production rate: ice consumption * ice-to-gas ratio
                                     float icePerSec = genDef.IceConsumptionPerSecond;
                                     float ratio = gasInfo.IceToGasRatio;
                                     productionLPerMin += (icePerSec * ratio) * 60f;
@@ -1197,10 +1257,10 @@ namespace MahrianeIndustries.LCDInfo
                         }
                     }
 
-                    // Check for water/HydroSolution consumers (farm plots)
+                    // Check for water consumers (farm plots)
                     if (lower.Contains("farmplot") || lower.Contains("farm_block") || lower.Contains("farmblock"))
                     {
-                        // Parse water/HydroSolution usage from farm plot's DetailedInfo
+                        // Parse water usage from farm plot's DetailedInfo
                         var info = termBlock.DetailedInfo ?? string.Empty;
                         if (!string.IsNullOrWhiteSpace(info))
                         {
