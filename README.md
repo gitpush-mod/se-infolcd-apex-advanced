@@ -64,7 +64,6 @@ Client-side only, with no world-side setup. Safe to add to an existing world.
 - ✅ **Existing saves** — safe to add or remove; screens fall back to blank if disabled
 - ✅ **Other LCD mods** — coexists, since it only touches Apex LCD blocks
 - ❌ **InfoLCD — Apex Update** — do not run both; they register the same scripts
-- ⚠️ **Non-Apex LCD blocks** — not supported by design
 
 Works fine without APEX.Advanced! installed — the Apex-specific readouts simply find nothing — but there's no reason to choose this variant in that case.
 
