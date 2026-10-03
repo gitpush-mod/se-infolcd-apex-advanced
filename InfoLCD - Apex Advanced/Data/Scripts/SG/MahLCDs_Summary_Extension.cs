@@ -598,7 +598,7 @@ namespace MahrianeIndustries.LCDInfo
                     // Read desired amount from parent config using typeId_subtypeId format (defaults to definition's minAmount or 1000)
                     int desiredAmount = (definition != null) ? definition.minAmount : 1000;
                     string configKey = $"{typeId}_{subtypeId}";
-                    if (parentConfig.ContainsKey("SettingsItemsSummary", configKey))
+                    if (ConfigHelpers.SafeContainsKey(parentConfig, "SettingsItemsSummary", configKey))
                         desiredAmount = parentConfig.Get("SettingsItemsSummary", configKey).ToInt32();
                     
                     // Use DrawItemSprite for proper formatting with bars
